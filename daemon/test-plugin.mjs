@@ -64,6 +64,7 @@ await scenario("session status busy", async () => {
   await hooks.event({ event: event("session.status", { sessionID: "s1", status: { type: "busy" } }) });
   await settle(600);
   console.log(JSON.stringify(findLast()?.body));
+  if (findLast()?.body?.state?.mode !== "Thinking") throw new Error("busy state was not high-level Thinking");
 });
 
 await scenario("chat.message detects model", async () => {
@@ -84,18 +85,34 @@ await scenario("tool execute before", async () => {
   if (JSON.stringify(body).includes("passwd") || JSON.stringify(body).includes("secret")) {
     throw new Error("tool arguments leaked into publisher state");
   }
+  if (body.state.mode !== "Editing") throw new Error("editing state was not high-level");
 });
 
 await scenario("file edited", async () => {
   await hooks.event({ event: event("file.edited", { file: "/abs/path/auth.ts" }) });
   await settle(600);
   console.log(JSON.stringify(findLast()?.body));
+  if (findLast()?.body?.state?.mode !== "Editing") throw new Error("file edit state was not high-level");
+});
+
+await scenario("todo planning", async () => {
+  await hooks.event({ event: event("todo.updated", {
+    items: [{ title: "Use John's credentials to fix payment production" }],
+  }) });
+  await settle(600);
+  const body = findLast()?.body;
+  console.log(JSON.stringify(body));
+  if (body.state.mode !== "Planning") throw new Error("planning state was not high-level");
+  if (JSON.stringify(body).includes("credentials") || JSON.stringify(body).includes("payment")) {
+    throw new Error("todo text leaked into publisher state");
+  }
 });
 
 await scenario("session idle then grace", async () => {
   await hooks.event({ event: event("session.idle", { sessionID: "s1" }) });
   await settle(600);
   console.log("immediately after idle:", JSON.stringify(findLast()?.body));
+  if (findLast()?.body?.state?.mode !== "Waiting for prompt") throw new Error("idle state was not waiting");
   await settle(15000);
   console.log("after grace:", JSON.stringify(findLast()?.body));
 });

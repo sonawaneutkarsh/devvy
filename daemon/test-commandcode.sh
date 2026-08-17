@@ -58,7 +58,7 @@ fail() {
 # VS Code heartbeats continuously (fallback)
 (
   while true; do
-    put '{"sourceId":"vscode:w1","kind":"vscode","ts":'"$(date +%s)"',"active":true,"focused":false,"state":{"app":"VS Code","project":"p","file":"Hero.tsx","language":"TypeScript","branch":"main","startedAt":2000}}'
+    put '{"sourceId":"vscode:w1","kind":"vscode","ts":'"$(date +%s)"',"active":true,"focused":false,"state":{"app":"VS Code","project":"p","language":"TypeScript","mode":"Editing","startedAt":2000}}'
     sleep 5
   done
 ) &
@@ -66,18 +66,18 @@ VS_PID=$!
 
 echo "=== 1. VS Code fallback present ==="
 sleep 2.5
-last_activity | grep -q 'details=p state=Hero.tsx' || fail "VS Code fallback missing"
+last_activity | grep -q 'details=p state=Editing' || fail "VS Code fallback missing"
 
 echo "=== 2. Command Code active wins over VS Code ==="
 (
   while true; do
-    put '{"sourceId":"commandcode:cc1","kind":"commandcode","ts":'"$(date +%s)"',"active":true,"state":{"app":"Command Code","project":"portfolio","model":"claude-sonnet-4-6","activity":"Editing code","startedAt":1000000}}'
+    put '{"sourceId":"commandcode:cc1","kind":"commandcode","ts":'"$(date +%s)"',"active":true,"state":{"app":"Command Code","project":"portfolio","model":"claude-sonnet-4-6","mode":"Editing","startedAt":1000000}}'
     sleep 5
   done
 ) &
 CC_PID=$!
 sleep 2.5
-last_activity | grep -q 'details=Claude Sonnet 4 6 state=Editing code' || fail "Command Code did not win over VS Code"
+last_activity | grep -q 'details=portfolio state=Editing' || fail "Command Code did not win over VS Code"
 
 echo "=== 3. OpenCode active immediately beats Command Code ==="
 OC_MODE_FILE="${TEST_DIR}/oc-mode"
@@ -87,7 +87,7 @@ echo active > "${OC_MODE_FILE}"
     ts=$(date +%s)
     mode=$(cat "${OC_MODE_FILE}")
     if [ "${mode}" = "active" ]; then
-      put '{"sourceId":"opencode:/x","kind":"opencode","ts":'"${ts}"',"active":true,"state":{"app":"OpenCode","project":"p","model":"Kimi K3","activity":"Implementing auth","file":"auth.ts","startedAt":2000000}}'
+      put '{"sourceId":"opencode:/x","kind":"opencode","ts":'"${ts}"',"active":true,"state":{"app":"OpenCode","project":"p","model":"Kimi K3","mode":"Thinking","startedAt":2000000}}'
     else
       put '{"sourceId":"opencode:/x","kind":"opencode","ts":'"${ts}"',"active":false,"state":{"app":"OpenCode","project":"p","model":"Kimi K3"}}'
     fi
@@ -96,13 +96,13 @@ echo active > "${OC_MODE_FILE}"
 ) &
 OC_PID=$!
 sleep 2.5
-last_activity | grep -q 'details=Kimi K3 state=Thinking...' || fail "OpenCode did not beat Command Code"
+last_activity | grep -q 'details=p state=Thinking' || fail "OpenCode did not beat Command Code"
 
 echo "=== 4. OpenCode idle -> Command Code takes over (after 15s hold) ==="
 BEFORE=$(activity_count)
 echo idle > "${OC_MODE_FILE}"
 sleep 24
-last_activity | grep -q 'details=Claude Sonnet 4 6 state=Editing code' || fail "Command Code did not take over after OpenCode idle"
+last_activity | grep -q 'details=portfolio state=Editing' || fail "Command Code did not take over after OpenCode idle"
 AFTER=$(activity_count)
 [ $((AFTER - BEFORE)) -le 2 ] || fail "excessive updates during priority transition"
 
@@ -119,7 +119,7 @@ CC_PID=""
 ) &
 CC_PID=$!
 sleep 24
-last_activity | grep -q 'details=p state=Hero.tsx' || fail "VS Code did not return after Command Code idle"
+last_activity | grep -q 'details=p state=Editing' || fail "VS Code did not return after Command Code idle"
 
 echo "=== 6. heartbeats stop -> sources expire, presence clears ==="
 BEFORE=$(activity_count)

@@ -85,19 +85,19 @@ emit("model_request_start", {
 await settle(600);
 assert(lastPayload?.state?.model === "gpt-5.6-sol", "object model not normalized");
 
-// tool_running sets a safe label
+// tool_running sets a high-level mode
 captured.length = 0;
 emit("tool_running", { type: "tool_running", toolCallId: "t1", toolName: "edit_file", description: "edits X" });
 await settle(600);
-assert(lastPayload?.state?.activity === "Editing code", "tool label wrong");
+assert(lastPayload?.state?.mode === "Editing", "tool mode wrong");
 assert(lastPayload?.active === true, "tool_running should keep active");
 
-// run_end marks idle and clears activity
+// run_end marks waiting and clears the transient mode
 captured.length = 0;
 emit("run_end", { type: "run_end", result: {} });
 await settle(600);
 assert(lastPayload?.active === false, "run_end should mark idle");
-assert(lastPayload?.state?.activity === undefined, "run_end should clear activity");
+assert(lastPayload?.state?.mode === "Waiting for prompt", "run_end should mark waiting");
 
 // privacy: no description, tool input, or command args leaked
 const all = JSON.stringify(captured);

@@ -35,19 +35,19 @@ put() {
 }
 
 echo "=== 1. OpenCode active (wins) ==="
-put '{"sourceId":"opencode:/x","kind":"opencode","ts":1,"active":true,"state":{"app":"OpenCode","project":"p","model":"Kimi K3","activity":"Implementing auth","file":"auth.ts","startedAt":1000}}'
+put '{"sourceId":"opencode:/x","kind":"opencode","ts":1,"active":true,"state":{"app":"OpenCode","project":"p","model":"Kimi K3","mode":"Thinking","startedAt":1000}}'
 sleep 2.5
 
 echo "=== 2. OpenCode idle, VS Code active (OpenCode holds) ==="
 put '{"sourceId":"opencode:/x","kind":"opencode","ts":2,"active":false,"state":{"app":"OpenCode","project":"p"}}'
-put '{"sourceId":"vscode:w1","kind":"vscode","ts":2,"active":true,"state":{"app":"VS Code","project":"p","file":"Hero.tsx","language":"TypeScript","branch":"main","startedAt":2000}}'
+put '{"sourceId":"vscode:w1","kind":"vscode","ts":2,"active":true,"state":{"app":"VS Code","project":"p","language":"TypeScript","mode":"Editing","startedAt":2000}}'
 sleep 2.5
 
 echo "=== 3. After OpenCode idle timeout, VS Code should win ==="
 sleep 18
 
 echo "=== 4. OpenCode re-active (should switch back immediately) ==="
-put '{"sourceId":"opencode:/x","kind":"opencode","ts":3,"active":true,"state":{"app":"OpenCode","project":"p","model":"Kimi K3","activity":"Refactoring","file":"auth.ts","startedAt":3000}}'
+put '{"sourceId":"opencode:/x","kind":"opencode","ts":3,"active":true,"state":{"app":"OpenCode","project":"p","model":"Kimi K3","mode":"Editing","startedAt":3000}}'
 sleep 2.5
 
 echo "=== server log ==="

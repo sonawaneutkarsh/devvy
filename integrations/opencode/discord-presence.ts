@@ -39,15 +39,6 @@ function stableId(value: string): string {
   return (hash >>> 0).toString(36);
 }
 
-function stripControl(value: string): string {
-  return value.replace(/[\u0000-\u001f\u007f]/g, "");
-}
-
-function truncate(value: string, max: number): string {
-  if (value.length <= max) return value;
-  return value.slice(0, max - 1) + "…";
-}
-
 function formatModel(providerID: string | undefined, modelID: string | undefined): string | undefined {
   // The daemon owns display normalization. Keep the original identifier here.
   return modelID || providerID;
@@ -58,18 +49,18 @@ function toolLabel(tool: string): string {
     case "edit":
     case "write":
     case "patch":
-      return "Editing code";
+      return "Editing";
     case "bash":
     case "shell":
     case "exec":
-      return "Running commands";
+      return "Running";
     case "read":
     case "grep":
     case "glob":
     case "find":
-      return "Searching code";
+      return "Searching";
     default:
-      return "Working on code";
+      return "Thinking";
   }
 }
 
@@ -100,8 +91,7 @@ const plugin: PluginModule = {
 
     const sessions = new Map<string, SessionRecord>();
     let lastModel: ModelRef | undefined;
-    let lastFile: string | undefined;
-    let transientActivity: string | undefined;
+    let mode: string | undefined;
     let active = false;
     let busySince: number | undefined;
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -116,19 +106,12 @@ const plugin: PluginModule = {
       return count;
     }
 
-    function activityText(): string {
-      // Never turn session titles, todo text, or filenames into activity text:
-      // those fields may contain a prompt or source-derived content.
-      return transientActivity || "Thinking...";
-    }
-
     function computeState() {
       return {
         app: "OpenCode",
         project,
         model: formatModel(lastModel?.providerID, lastModel?.modelID),
-        activity: truncate(stripControl(activityText()), 128),
-        file: basename(lastFile),
+        mode: mode || (active ? "Thinking" : "Waiting for prompt"),
         startedAt: busySince,
       };
     }
@@ -170,7 +153,7 @@ const plugin: PluginModule = {
         if (!busySince) busySince = Date.now();
       } else {
         busySince = undefined;
-        transientActivity = undefined;
+        mode = undefined;
       }
     }
 
@@ -211,7 +194,7 @@ const plugin: PluginModule = {
           const sessionID = event.properties.sessionID;
           if (!sessionID) break;
           setSession(sessionID, { status: "idle" });
-          transientActivity = undefined;
+          mode = undefined;
           recomputeBusy();
           scheduleSend();
           break;
@@ -220,18 +203,18 @@ const plugin: PluginModule = {
           const sessionID = event.properties.sessionID;
           if (sessionID) setSession(sessionID, { status: "idle" });
           recomputeBusy();
-          transientActivity = "Session error";
+          mode = "Idle";
           scheduleSend();
           break;
         }
         case "todo.updated": {
           // A todo may contain user prompt text; it is intentionally not sent.
+          if (active) mode = "Planning";
           scheduleSend();
           break;
         }
         case "file.edited": {
-          lastFile = basename(event.properties.file) || lastFile;
-          transientActivity = "Editing code";
+          mode = "Editing";
           scheduleSend();
           break;
         }
@@ -254,8 +237,7 @@ const plugin: PluginModule = {
         case "message.part.updated": {
           const part = event.properties.part;
           if (part?.type === "patch" && Array.isArray(part.files) && part.files.length > 0) {
-            lastFile = basename(part.files[part.files.length - 1]) || lastFile;
-            transientActivity = undefined;
+            mode = "Editing";
           }
           scheduleSend();
           break;
@@ -288,14 +270,14 @@ const plugin: PluginModule = {
       },
 
       "tool.execute.before": async ({ tool, sessionID }) => {
-        transientActivity = toolLabel(tool);
+        mode = toolLabel(tool);
         if (sessionID) setSession(sessionID, { status: "busy" });
         recomputeBusy();
         scheduleSend();
       },
 
       "tool.execute.after": async () => {
-        transientActivity = undefined;
+        mode = undefined;
         scheduleSend();
       },
 

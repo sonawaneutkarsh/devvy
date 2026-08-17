@@ -12,4 +12,4 @@ if command -v code >/dev/null 2>&1; then
   code --uninstall-extension sonawaneutkarsh.devvy >/dev/null 2>&1 || true
 fi
 rm -rf "${INSTALL_DIR}"
-printf 'Devvy V3 uninstalled. Unrelated LaunchAgents and VS Code extensions were not changed.\n'
+printf 'Devvy V4 uninstalled. Unrelated LaunchAgents and VS Code extensions were not changed.\n'

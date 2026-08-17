@@ -185,6 +185,10 @@ if (lastPayload.active !== true || lastPayload.focused !== false) {
   console.log("FAIL: unfocused window lost presence eligibility");
   process.exit(1);
 }
+if (lastPayload.state.mode !== "Editing" || "path" in lastPayload.state || "file" in lastPayload.state || "branch" in lastPayload.state) {
+  console.log("FAIL: VS Code payload was not reduced to safe high-level state");
+  process.exit(1);
+}
 if (lastPayload.state.startedAt === undefined) {
   console.log("FAIL: startedAt reset on unfocus");
   process.exit(1);

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Devvy V3 macOS bootstrapper and installer.
+# Devvy V4 macOS bootstrapper and installer.
 set -euo pipefail
 
 REPO_URL="https://github.com/sonawaneutkarsh/devvy"
-RELEASE_VERSION="v3.0.1"
-RELEASE_ASSET_URL="${REPO_URL}/releases/download/${RELEASE_VERSION}/devvy-macos.tar.gz?download=1"
-# Updated by scripts/package-release.sh after the release archive is built.
-RELEASE_SHA256="f30bc1f9af0c7e917f42cfde255d2a8c5d1318bc2cb1eda129a130d36578a95f"
+RELEASE_VERSION="v4.0.0"
+NODE_RUNTIME_VERSION="v24.19.0"
+NODE_ARM64_SHA256="3f1cf157479c1480352083105e13faf9d008ede98e7e157746b6df940d197b94"
+NODE_X86_64_SHA256="d35e95230f46f6f0751df497c56622c6735e05d5e1fb1630996a005b9d328fe4"
 LABEL="com.sonawaneutkarsh.devvy"
 INSTALL_DIR="${DEVVY_INSTALL_DIR:-${HOME}/.local/share/devvy}"
 TEMP_DIR=""
@@ -18,16 +18,17 @@ note() { printf 'Devvy: %s\n' "$*"; }
 
 [ "$(uname -s)" = "Darwin" ] || fail "macOS is required."
 case "$(uname -m)" in
-  arm64) ARCH="arm64";;
-  x86_64) ARCH="x86_64";;
+  arm64) ARCH="arm64"; RELEASE_SHA256="3201f48eb3965e2aa029b2fc3a68f42aab116c14e03440d0196e40f73c0b3d80";;
+  x86_64) ARCH="x86_64"; RELEASE_SHA256="edb114fd591d0c04446f797c305bbc980b804ee4b779bbaae46efb58ba3ac3dd";;
   *) fail "unsupported macOS architecture: $(uname -m)";;
 esac
+RELEASE_ASSET_NAME="devvy-macos-${ARCH}.tar.gz"
+RELEASE_ASSET_URL="${REPO_URL}/releases/download/${RELEASE_VERSION}/${RELEASE_ASSET_NAME}?download=1"
 note "Installing Devvy ${RELEASE_VERSION} for ${ARCH}."
 
-command -v node >/dev/null 2>&1 || fail "Node.js 18 or later is required."
-NODE_PATH="$(command -v node)"
-NODE_MAJOR="$(${NODE_PATH} -p 'process.versions.node.split(".")[0]')"
-[ "${NODE_MAJOR}" -ge 18 ] || fail "Node.js 18 or later is required (found ${NODE_PATH})."
+command -v curl >/dev/null 2>&1 || fail "curl is required."
+command -v tar >/dev/null 2>&1 || fail "tar is required."
+command -v shasum >/dev/null 2>&1 || fail "shasum is required to verify downloads."
 command -v launchctl >/dev/null 2>&1 || fail "launchctl was not found."
 command -v lsof >/dev/null 2>&1 || fail "lsof was not found."
 
@@ -36,9 +37,6 @@ SOURCE_DIR=""
 if [ -f "${SCRIPT_DIR}/daemon/daemon.mjs" ] && [ -f "${SCRIPT_DIR}/daemon/launchd/${LABEL}.plist" ]; then
   SOURCE_DIR="${SCRIPT_DIR}"
 else
-  command -v curl >/dev/null 2>&1 || fail "curl is required for release installation."
-  command -v tar >/dev/null 2>&1 || fail "tar is required for release installation."
-  command -v shasum >/dev/null 2>&1 || fail "shasum is required to verify the release."
   TEMP_DIR="$(mktemp -d)"
   note "Downloading the signed-by-checksum Devvy release artifact."
   curl --fail --location --silent --show-error "${RELEASE_ASSET_URL}" -o "${TEMP_DIR}/devvy-macos.tar.gz" ||
@@ -51,8 +49,32 @@ fi
 
 DAEMON_PATH="${SOURCE_DIR}/daemon/daemon.mjs"
 PLIST_SRC="${SOURCE_DIR}/daemon/launchd/${LABEL}.plist"
-VSIX_PATH="${SOURCE_DIR}/devvy-${RELEASE_VERSION#v}.vsix"
+VSIX_VERSION="4.0.0"
+VSIX_PATH="${SOURCE_DIR}/devvy-${VSIX_VERSION}.vsix"
 [ -f "${DAEMON_PATH}" ] && [ -f "${PLIST_SRC}" ] || fail "the Devvy payload is incomplete."
+
+NODE_SOURCE="${SOURCE_DIR}/runtime/node"
+NODE_LICENSE_SOURCE="${SOURCE_DIR}/runtime/node.LICENSE"
+if [ ! -x "${NODE_SOURCE}" ]; then
+  [ -n "${TEMP_DIR}" ] || TEMP_DIR="$(mktemp -d)"
+  case "${ARCH}" in
+    arm64) NODE_ARCHIVE="node-${NODE_RUNTIME_VERSION}-darwin-arm64.tar.xz"; NODE_SHA256="${NODE_ARM64_SHA256}";;
+    x86_64) NODE_ARCHIVE="node-${NODE_RUNTIME_VERSION}-darwin-x64.tar.xz"; NODE_SHA256="${NODE_X86_64_SHA256}";;
+  esac
+  note "Downloading the verified Node.js ${NODE_RUNTIME_VERSION} runtime for ${ARCH}."
+  curl --fail --location --silent --show-error \
+    "https://nodejs.org/dist/${NODE_RUNTIME_VERSION}/${NODE_ARCHIVE}" -o "${TEMP_DIR}/${NODE_ARCHIVE}" ||
+    fail "could not download the Node.js runtime."
+  [ "$(shasum -a 256 "${TEMP_DIR}/${NODE_ARCHIVE}" | awk '{print $1}')" = "${NODE_SHA256}" ] ||
+    fail "Node.js runtime checksum mismatch."
+  mkdir -p "${TEMP_DIR}/node-runtime"
+  tar -xJf "${TEMP_DIR}/${NODE_ARCHIVE}" -C "${TEMP_DIR}/node-runtime" --strip-components=1 ||
+    fail "Node.js runtime archive could not be unpacked."
+  NODE_SOURCE="${TEMP_DIR}/node-runtime/bin/node"
+  NODE_LICENSE_SOURCE="${TEMP_DIR}/node-runtime/LICENSE"
+fi
+NODE_MAJOR="$(${NODE_SOURCE} -p 'process.versions.node.split(".")[0]')"
+[ "${NODE_MAJOR}" -ge 18 ] || fail "the bundled Node.js runtime is too old."
 
 mkdir -p "${INSTALL_DIR}/daemon/.live-ipc" "${HOME}/Library/LaunchAgents"
 UID_VALUE="$(id -u)"
@@ -62,23 +84,26 @@ if [ -f "${INSTALL_DIR}/daemon/config.json" ]; then
   SAVED_CONFIG="${TEMP_DIR:-$(mktemp -d)}/devvy-config.json"
   cp "${INSTALL_DIR}/daemon/config.json" "${SAVED_CONFIG}"
 fi
-rm -rf "${INSTALL_DIR}/daemon" "${INSTALL_DIR}/integrations"
-mkdir -p "${INSTALL_DIR}/daemon/launchd" "${INSTALL_DIR}/integrations/opencode" "${INSTALL_DIR}/integrations/commandcode"
+rm -rf "${INSTALL_DIR}/daemon" "${INSTALL_DIR}/integrations" "${INSTALL_DIR}/runtime"
+mkdir -p "${INSTALL_DIR}/daemon/launchd" "${INSTALL_DIR}/integrations/opencode" "${INSTALL_DIR}/integrations/commandcode" "${INSTALL_DIR}/runtime"
 cp "${SOURCE_DIR}/daemon/arbitration.mjs" "${SOURCE_DIR}/daemon/daemon.mjs" "${SOURCE_DIR}/daemon/discord-ipc.mjs" \
   "${SOURCE_DIR}/daemon/model-display.mjs" "${SOURCE_DIR}/daemon/presence.mjs" "${SOURCE_DIR}/daemon/config.json" "${INSTALL_DIR}/daemon/"
 cp "${PLIST_SRC}" "${INSTALL_DIR}/daemon/launchd/"
 cp "${SOURCE_DIR}/integrations/opencode/discord-presence.ts" "${INSTALL_DIR}/integrations/opencode/"
 cp "${SOURCE_DIR}/integrations/commandcode/discord-presence.ts" "${INSTALL_DIR}/integrations/commandcode/"
+cp "${NODE_SOURCE}" "${INSTALL_DIR}/runtime/node"
+if [ -f "${NODE_LICENSE_SOURCE}" ]; then cp "${NODE_LICENSE_SOURCE}" "${INSTALL_DIR}/runtime/node.LICENSE"; fi
+chmod 755 "${INSTALL_DIR}/runtime/node"
 mkdir -p "${INSTALL_DIR}/daemon/.live-ipc"
 [ -z "${SAVED_CONFIG}" ] || cp "${SAVED_CONFIG}" "${INSTALL_DIR}/daemon/config.json"
 if [ -f "${SOURCE_DIR}/uninstall.sh" ]; then cp "${SOURCE_DIR}/uninstall.sh" "${INSTALL_DIR}/uninstall.sh"; fi
-INSTALLED_VSIX_PATH="${INSTALL_DIR}/devvy-${RELEASE_VERSION#v}.vsix"
+INSTALLED_VSIX_PATH="${INSTALL_DIR}/devvy-${VSIX_VERSION}.vsix"
 if [ -f "${VSIX_PATH}" ]; then cp "${VSIX_PATH}" "${INSTALLED_VSIX_PATH}"; fi
 
 REPO_DIR="$(cd "${INSTALL_DIR}" && pwd -P)"
 DAEMON_DIR="${REPO_DIR}/daemon"
 DAEMON_PATH="${DAEMON_DIR}/daemon.mjs"
-NODE_PATH="$(cd "$(dirname "${NODE_PATH}")" && pwd -P)/$(basename "${NODE_PATH}")"
+NODE_PATH="${REPO_DIR}/runtime/node"
 PLIST_DST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
 sed -e "s|__NODE_PATH__|${NODE_PATH}|g" -e "s|__DAEMON_PATH__|${DAEMON_PATH}|g" \
   -e "s|__DAEMON_DIR__|${DAEMON_DIR}|g" "${PLIST_SRC}" > "${PLIST_DST}"
@@ -112,7 +137,7 @@ else
   note "VS Code was not detected; the bundled extension remains at ${INSTALLED_VSIX_PATH}."
 fi
 
-launchctl print "gui/${UID_VALUE}/${LABEL}" >/dev/null 2>&1 || fail "V3 LaunchAgent is not loaded."
+launchctl print "gui/${UID_VALUE}/${LABEL}" >/dev/null 2>&1 || fail "V4 LaunchAgent is not loaded."
 for _ in $(seq 1 30); do
   HEALTH_RESPONSE="$(curl -fsS http://127.0.0.1:17377/healthz 2>/dev/null || true)"
   if [ -n "${HEALTH_RESPONSE}" ] && "${NODE_PATH}" -e \
@@ -120,8 +145,8 @@ for _ in $(seq 1 30); do
     "${HEALTH_RESPONSE}" >/dev/null 2>&1; then
     PORT_OWNER="$(lsof -nP -iTCP:17377 -sTCP:LISTEN -t 2>/dev/null | sort -u | awk 'NF {print; exit}')"
     [ -n "${PORT_OWNER}" ] || fail "daemon health succeeded but port 17377 has no listener."
-    [ "$(ps -p "${PORT_OWNER}" -o command= | grep -F -- "${DAEMON_PATH}" || true)" ] || fail "port 17377 is not owned by the V3 daemon."
-    echo "Devvy ${RELEASE_VERSION} installed successfully."
+    [ "$(ps -p "${PORT_OWNER}" -o command= | grep -F -- "${DAEMON_PATH}" || true)" ] || fail "port 17377 is not owned by the V4 daemon."
+echo "Devvy ${RELEASE_VERSION} installed successfully."
     echo "  install: ${INSTALL_DIR}"
     echo "  agent:   ${LABEL}"
     echo "  health:  http://127.0.0.1:17377/healthz"
@@ -129,4 +154,4 @@ for _ in $(seq 1 30); do
   fi
   sleep 0.25
 done
-fail "V3 LaunchAgent loaded but daemon health did not respond. Check ${DAEMON_DIR}/.live-ipc/launchd.stderr.log"
+fail "V4 LaunchAgent loaded but daemon health did not respond. Check ${DAEMON_DIR}/.live-ipc/launchd.stderr.log"

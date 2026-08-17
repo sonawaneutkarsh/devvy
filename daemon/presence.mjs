@@ -1,9 +1,28 @@
 import { friendlyModelName } from "./model-display.mjs";
 
-export const ACTIVITY_LABELS = new Set([
-  "Reading files", "Searching code", "Editing code", "Running commands",
-  "Thinking...", "Waiting for response", "Reviewing changes", "Working on code",
-  "Waiting for prompt",
+export const MODE_LABELS = new Set([
+  "Thinking", "Editing", "Planning", "Running", "Reviewing", "Searching",
+  "Waiting", "Waiting for prompt", "Idle",
+]);
+const MODE_ALIASES = new Map([
+  ["thinking", "Thinking"],
+  ["thinking...", "Thinking"],
+  ["editing", "Editing"],
+  ["editing code", "Editing"],
+  ["planning", "Planning"],
+  ["running", "Running"],
+  ["running commands", "Running"],
+  ["reviewing", "Reviewing"],
+  ["reviewing changes", "Reviewing"],
+  ["searching", "Searching"],
+  ["searching code", "Searching"],
+  ["reading files", "Searching"],
+  ["waiting", "Waiting"],
+  ["waiting for response", "Waiting"],
+  ["waiting for prompt", "Waiting for prompt"],
+  ["working on code", "Thinking"],
+  ["idle", "Idle"],
+  ["session error", "Idle"],
 ]);
 
 const DEFAULT_VISIBILITY = {
@@ -72,9 +91,14 @@ export function safeModel(value) {
   return model;
 }
 
-export function safeActivity(value, fallback = "Working on code") {
-  if (value === "Thinking") return "Thinking...";
-  return ACTIVITY_LABELS.has(value) ? value : fallback;
+export function safeMode(value, fallback = "Thinking") {
+  const text = clean(value).toLowerCase();
+  return MODE_ALIASES.get(text) || (MODE_LABELS.has(value) ? value : fallback);
+}
+
+// Retain the old export for isolated clients while making its output high-level.
+export function safeActivity(value, fallback = "Thinking") {
+  return safeMode(value, fallback);
 }
 
 export function defaultVisibility() {
@@ -93,18 +117,22 @@ function addAssets(out, key, text, assets, visibility) {
   }
 }
 
-function setAgentDetails(out, model, agent, visibility) {
+function setIdentity(out, project, model, agent, visibility) {
   const displayModel = visibility.showModel ? safeModel(model) : "";
-  if (displayModel) out.details = displayModel;
+  const displayProject = visibility.showProject ? safeBasename(project) : "";
+  if (displayProject) out.details = displayProject;
   else if (visibility.showAgent) out.details = agent;
+  return displayModel;
 }
 
-function setSafeActivity(out, source, visibility) {
-  if (visibility.showActivity) {
-    out.state = source.active
-      ? safeActivity(source.state?.activity, "Thinking...")
-      : "Waiting for prompt";
-  }
+function setSafeMode(out, source, visibility, displayModel) {
+  const mode = source.active
+    ? safeMode(source.state?.mode ?? source.state?.activity, "Thinking")
+    : safeMode(source.state?.mode ?? source.state?.activity, "Waiting for prompt");
+  const parts = [];
+  if (visibility.showActivity) parts.push(mode);
+  if (displayModel) parts.push(displayModel);
+  if (parts.length) out.state = parts.join(" • ");
 }
 
 export function buildDiscordActivity(source, visibility = defaultVisibility(), assets = {}) {
@@ -113,32 +141,25 @@ export function buildDiscordActivity(source, visibility = defaultVisibility(), a
   const out = {};
   if (source.kind === "opencode" || source.kind === "commandcode") {
     const agent = source.kind === "opencode" ? "OpenCode" : "Command Code";
-    setAgentDetails(out, state.model, agent, visibility);
-    setSafeActivity(out, source, visibility);
+    const displayModel = setIdentity(out, state.project, state.model, agent, visibility);
+    setSafeMode(out, source, visibility, displayModel);
     const startedAt = visibility.showActivity && source.active && timestamp(state.startedAt);
     if (startedAt) out.timestamps = { start: startedAt };
-    addAssets(out, source.kind, out.details || agent, assets, visibility);
+    addAssets(out, source.kind, displayModel || out.details || agent, assets, visibility);
     return Object.keys(out).length ? out : null;
   }
 
-  const project = visibility.showProject ? safeBasename(state.project, 128) : "";
-  const parts = [];
-  if (visibility.showFile) {
-    const file = safeBasename(state.file);
-    if (file) parts.push(file);
-  }
-  if (visibility.showLanguage) {
-    const language = safeLanguage(state.language);
-    parts.push(language || "Editing");
-  }
-  if (visibility.showBranch) {
-    const branch = safeBranch(state.branch);
-    if (branch) parts.push(`Branch: ${branch}`);
-  }
-  if (visibility.showDirty && state.editing === true) parts.push("Unsaved changes");
+  const project = visibility.showProject ? safeBasename(state.project) : "";
   if (project) out.details = project;
   else if (visibility.showAgent) out.details = "VS Code";
-  if (parts.length) out.state = parts.join(" · ").slice(0, 128);
+  const mode = safeMode(state.mode ?? state.activity, source.active ? "Editing" : "Waiting for prompt");
+  const parts = [];
+  if (visibility.showActivity) parts.push(mode);
+  if (visibility.showLanguage) {
+    const language = safeLanguage(state.language);
+    if (language) parts.push(language);
+  }
+  if (parts.length) out.state = parts.join(" • ").slice(0, 128);
   const startedAt = visibility.showActivity && timestamp(state.startedAt);
   if (startedAt) out.timestamps = { start: startedAt };
   addAssets(out, "vscode", "VS Code", assets, visibility);

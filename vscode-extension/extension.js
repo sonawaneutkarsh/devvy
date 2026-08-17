@@ -4,19 +4,12 @@ const DAEMON_URL = "http://127.0.0.1:17377";
 const HEARTBEAT_MS = 5000;
 let stopPublisher;
 
-function basename(p) {
-  if (!p) return undefined;
-  const parts = String(p).split(/[\\/]/);
-  return parts[parts.length - 1] || undefined;
-}
-
 function activate(context) {
   let active = false;
   let focused = false;
   let startedAt;
   let debounceTimer;
   let heartbeat;
-  let currentRepo;
   let disposed = false;
 
   function activeEditorInfo() {
@@ -25,39 +18,20 @@ function activate(context) {
     const doc = editor.document;
     const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
     return {
-      file: basename(doc.uri.fsPath),
-      path: doc.uri.fsPath,
       language: doc.languageId,
       dirty: doc.isDirty,
       project: folder ? folder.name : undefined,
-      projectPath: folder ? folder.uri.fsPath : undefined,
     };
-  }
-
-  function findRepo(api, info) {
-    if (!api || !info) return undefined;
-    for (const repo of api.repositories || []) {
-      const root = repo.rootUri?.fsPath;
-      if (!root) continue;
-      if (info.path.startsWith(root)) return repo;
-    }
-    return undefined;
-  }
-
-  function branchOf(repo) {
-    return repo?.state?.HEAD?.name || undefined;
   }
 
   function computeState() {
     const info = activeEditorInfo();
-    const branch = currentRepo ? branchOf(currentRepo) : undefined;
     return {
       app: "VS Code",
       project: info?.project,
-      file: info?.file,
       language: info?.language,
-      branch,
       editing: info?.dirty,
+      mode: active ? "Editing" : "Waiting for prompt",
       startedAt,
     };
   }
@@ -109,20 +83,8 @@ function activate(context) {
     }
   }
 
-  function refreshRepo() {
-    const info = activeEditorInfo();
-    const gitExt = vscode.extensions.getExtension("vscode.git");
-    if (!gitExt || !gitExt.isActive) {
-      currentRepo = undefined;
-      return;
-    }
-    const api = gitExt.exports?.getAPI?.(1);
-    currentRepo = findRepo(api, info);
-  }
-
   async function refresh() {
     recomputeActive();
-    refreshRepo();
     await send();
   }
 
@@ -134,10 +96,6 @@ function activate(context) {
       if (doc.uri.scheme === "file") scheduleSend();
     }),
     vscode.workspace.onDidChangeTextDocument(() => scheduleSend()),
-  );
-
-  context.subscriptions.push(
-    vscode.extensions.onDidChange(() => refresh()),
   );
 
   heartbeat = setInterval(send, HEARTBEAT_MS);

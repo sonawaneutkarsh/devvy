@@ -5,129 +5,124 @@ import {
   presenceVisibility,
   safeActivity,
   safeBasename,
-  safeBranch,
   safeLanguage,
+  safeMode,
   safeModel,
 } from "./presence.mjs";
 
+const visibility = defaultVisibility();
 const source = {
   kind: "opencode",
   active: true,
   state: {
     model: "zai-org/GLM-5.3",
-    activity: "Editing code",
+    mode: "Thinking",
     project: "/private/project",
     file: "/private/project/src/auth.ts",
-    language: "typescript",
     branch: "feature/auth",
-    editing: true,
     startedAt: 100,
   },
 };
 
-assert.deepEqual(presenceVisibility(undefined), defaultVisibility());
-assert.equal(presenceVisibility({ presence: { showFile: false, showDirty: "yes" } }).showFile, false);
-assert.equal(presenceVisibility({ presence: { showDirty: "yes" } }).showDirty, false);
-assert.equal(presenceVisibility({ presence: null }).showProject, true);
-
-assert.equal(safeActivity("Editing code"), "Editing code");
-assert.equal(safeActivity("Thinking"), "Thinking...");
-assert.equal(safeActivity("Implement OAuth with credentials"), "Working on code");
+assert.deepEqual(presenceVisibility(undefined), visibility);
+assert.equal(presenceVisibility({ presence: { showFile: false, showDirty: "yes" } }).showProject, true);
 assert.equal(safeBasename("/private/project/src/auth.ts"), "auth.ts");
+assert.equal(safeBasename("/private/project"), "project");
 assert.equal(safeLanguage("typescript"), "typescript");
 assert.equal(safeLanguage("cat /etc/passwd"), "");
-assert.equal(safeBranch("feature/auth"), "feature/auth");
-assert.equal(safeBranch("/Users/private"), "");
 assert.equal(safeModel("zai-org/GLM-5.3"), "GLM 5.3");
-assert.equal(safeModel("openai/o1"), "O1");
-assert.equal(safeModel("qwen/qwen3"), "Qwen3");
-for (const unsafe of [
-  "Implement OAuth authentication using John's credentials",
-  "token=abc123",
-  "rm -rf /private/project",
-  "console.log(sourceCode)",
-  "123456",
-  "Implement OAuth 2",
-  "Use John's production credentials 2",
-  "Deploy payment API 2",
-  "Implement GPT integration 2",
-]) assert.equal(safeModel(unsafe), "");
+assert.equal(safeModel("openai/gpt-5.6"), "GPT 5.6");
+assert.equal(safeModel("Implement OAuth using John's credentials"), "");
 
-const activity = buildDiscordActivity(source, defaultVisibility(), {
-  opencode: "opencode",
-});
+for (const [input, expected] of [
+  ["Thinking...", "Thinking"],
+  ["Editing code", "Editing"],
+  ["Planning", "Planning"],
+  ["Running commands", "Running"],
+  ["Reviewing changes", "Reviewing"],
+  ["Waiting for response", "Waiting"],
+  ["Waiting for prompt", "Waiting for prompt"],
+  ["Idle", "Idle"],
+]) assert.equal(safeMode(input), expected);
+assert.equal(safeMode("Implement authentication with John's credentials"), "Thinking");
+assert.equal(safeActivity("Editing code"), "Editing");
+
+const activity = buildDiscordActivity(source, visibility, { opencode: "opencode" });
 assert.deepEqual(activity, {
-  details: "GLM 5.3",
-  state: "Editing code",
+  details: "project",
+  state: "Thinking • GLM 5.3",
   timestamps: { start: 100 },
   assets: { large_image: "opencode", large_text: "GLM 5.3" },
 });
+assert(!JSON.stringify(activity).includes("/private/project"));
+assert(!JSON.stringify(activity).includes("auth.ts"));
+assert(!JSON.stringify(activity).includes("feature/auth"));
 
-const unsafeActivity = buildDiscordActivity({
-  kind: "opencode",
-  active: true,
-  state: {
-    model: "Use John's credentials in production",
-    activity: "Run `cat /etc/passwd` with token=abc123",
-  },
-}, defaultVisibility(), { opencode: "opencode" });
-assert.equal(unsafeActivity.details, "OpenCode");
-assert.equal(unsafeActivity.state, "Thinking...");
+for (const mode of ["Editing", "Planning", "Running", "Reviewing"]) {
+  const result = buildDiscordActivity({ ...source, state: { ...source.state, mode } }, visibility);
+  assert.equal(result.state, `${mode} • GLM 5.3`);
+}
 
-assert.equal(buildDiscordActivity(source, { ...defaultVisibility(), showModel: false }).details, "OpenCode");
-assert.equal(buildDiscordActivity(source, { ...defaultVisibility(), showActivity: false }).state, undefined);
-assert.equal(buildDiscordActivity(source, { ...defaultVisibility(), showAgent: false }).assets, undefined);
+const waiting = buildDiscordActivity({
+  ...source,
+  active: false,
+  state: { ...source.state, mode: undefined },
+}, visibility);
+assert.equal(waiting.details, "project");
+assert.equal(waiting.state, "Waiting for prompt • GLM 5.3");
 
-const vscodeDefaults = {
+const unknownModel = buildDiscordActivity({
+  ...source,
+  state: { ...source.state, model: "Use John's production credentials" },
+}, visibility);
+assert.equal(unknownModel.details, "project");
+assert.equal(unknownModel.state, "Thinking");
+assert(!JSON.stringify(unknownModel).includes("credentials"));
+
+const promptState = buildDiscordActivity({
+  ...source,
+  state: { ...source.state, mode: "Fix payment system using token=abc123" },
+}, visibility);
+assert.equal(promptState.state, "Thinking • GLM 5.3");
+assert(!JSON.stringify(promptState).includes("payment"));
+assert(!JSON.stringify(promptState).includes("token"));
+
+const vscode = buildDiscordActivity({
   kind: "vscode",
   active: true,
   state: {
     project: "/private/project",
     file: "/private/project/src/auth.ts",
     language: "typescript",
+    mode: "Editing",
     branch: "feature/auth",
     editing: true,
     startedAt: 100,
   },
-};
-assert.equal(buildDiscordActivity(vscodeDefaults, { ...defaultVisibility(), showProject: false }).details, "VS Code");
-assert.equal(buildDiscordActivity(vscodeDefaults, { ...defaultVisibility(), showFile: false }).state, "typescript");
-assert.equal(buildDiscordActivity(vscodeDefaults, { ...defaultVisibility(), showLanguage: false }).state, "auth.ts");
-assert.equal(buildDiscordActivity({ ...vscodeDefaults, state: { ...vscodeDefaults.state, language: undefined } }, defaultVisibility()).state, "auth.ts · Editing");
-assert.equal(buildDiscordActivity({ ...vscodeDefaults, state: { ...vscodeDefaults.state, language: "cat /etc/passwd" } }, defaultVisibility()).state, "auth.ts · Editing");
-assert.equal(buildDiscordActivity({ ...vscodeDefaults, state: { ...vscodeDefaults.state, language: undefined } }, { ...defaultVisibility(), showLanguage: false }).state, "auth.ts");
-assert.equal(buildDiscordActivity(vscodeDefaults, { ...defaultVisibility(), showBranch: true }).state.includes("Branch: feature/auth"), true);
-assert.equal(buildDiscordActivity(vscodeDefaults, { ...defaultVisibility(), showDirty: true }).state.includes("Unsaved changes"), true);
+}, visibility, { vscode: "vscode" });
+assert.deepEqual(vscode, {
+  details: "project",
+  state: "Editing • typescript",
+  timestamps: { start: 100 },
+  assets: { large_image: "vscode", large_text: "VS Code" },
+});
+assert(!JSON.stringify(vscode).includes("/private/project"));
+assert(!JSON.stringify(vscode).includes("auth.ts"));
+assert(!JSON.stringify(vscode).includes("feature/auth"));
 
-const hidden = buildDiscordActivity(source, {
-  ...defaultVisibility(),
+assert.equal(buildDiscordActivity({
+  kind: "vscode",
+  active: false,
+  state: { project: "/private/project" },
+}, visibility).state, "Waiting for prompt");
+assert.equal(buildDiscordActivity(source, { ...visibility, showModel: false }).state, "Thinking");
+assert.equal(buildDiscordActivity(source, { ...visibility, showProject: false }).details, "OpenCode");
+assert.equal(buildDiscordActivity(source, {
+  ...visibility,
   showModel: false,
   showActivity: false,
   showAgent: false,
   showProject: false,
-  showFile: false,
-  showLanguage: false,
-  showBranch: false,
-  showDirty: false,
-}, { opencode: "opencode" });
-assert.equal(hidden, null);
-assert.equal(buildDiscordActivity(vscodeDefaults, {
-  showModel: false,
-  showActivity: false,
-  showAgent: false,
-  showProject: false,
-  showFile: false,
-  showLanguage: false,
-  showBranch: false,
-  showDirty: false,
-}, { vscode: "vscode" }), null);
+}, {}), null);
 
-const vscode = buildDiscordActivity(vscodeDefaults, {
-  ...defaultVisibility(),
-  showBranch: true,
-  showDirty: true,
-}, { vscode: "vscode" });
-assert.equal(vscode.details, "project");
-assert.equal(vscode.state, "auth.ts · typescript · Branch: feature/auth · Unsaved changes");
-
-console.log("PASS: presence defaults, toggles, allowlist, and final payload privacy");
+console.log("PASS: high-level modes, project basenames, model allowlist, and privacy");

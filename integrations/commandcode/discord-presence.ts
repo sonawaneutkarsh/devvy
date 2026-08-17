@@ -38,15 +38,15 @@ function toolLabel(toolName: unknown): string | undefined {
   if (typeof toolName !== 'string' || !toolName) return undefined;
   switch (toolName) {
     case 'read_file':
-      return 'Reading files';
+      return 'Searching';
     case 'grep':
     case 'glob':
-      return 'Searching code';
+      return 'Searching';
     case 'write_file':
     case 'edit_file':
-      return 'Editing code';
+      return 'Editing';
     case 'shell_command':
-      return 'Running commands';
+      return 'Running';
     default:
       return undefined;
   }
@@ -59,7 +59,7 @@ export default function (cmd: ModApi): void {
   let active = false;
   let busySince: number | undefined;
   let lastModel: string | undefined;
-  let activityLabel: string | undefined;
+  let mode: string | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -68,7 +68,7 @@ export default function (cmd: ModApi): void {
       app: 'Command Code',
       project,
       model: lastModel ? truncate(stripControl(lastModel), 128) : undefined,
-      activity: active ? truncate(stripControl(activityLabel || 'Working on code'), 128) : undefined,
+      mode: mode || (active ? 'Thinking' : 'Waiting for prompt'),
       startedAt: busySince,
     };
   }
@@ -125,7 +125,7 @@ export default function (cmd: ModApi): void {
     } else {
       active = false;
       busySince = undefined;
-      activityLabel = undefined;
+      mode = undefined;
     }
     scheduleSend();
   }
@@ -137,13 +137,13 @@ export default function (cmd: ModApi): void {
   cmd.on('model_request_start', (event) => {
     const model = normalizeModel(event?.model);
     if (model) lastModel = model;
-    activityLabel = 'Waiting for response';
+    mode = 'Thinking';
     setActive(true);
   });
 
   cmd.on('tool_running', (event) => {
     const label = toolLabel(event?.toolName);
-    if (label) activityLabel = label;
+    if (label) mode = label;
     setActive(true);
   });
 
@@ -155,7 +155,7 @@ export default function (cmd: ModApi): void {
   cmd.on('session_shutdown', () => {
     active = false;
     busySince = undefined;
-    activityLabel = undefined;
+    mode = undefined;
     stopHeartbeat();
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = undefined;

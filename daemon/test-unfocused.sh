@@ -59,7 +59,7 @@ fail() {
 # active=true even while focused=false), heartbeating every 5s.
 (
   while true; do
-    put '{"sourceId":"vscode:w1","kind":"vscode","ts":'"$(date +%s)"',"active":true,"focused":false,"state":{"app":"VS Code","project":"p","file":"Hero.tsx","language":"TypeScript","branch":"main","startedAt":2000}}'
+    put '{"sourceId":"vscode:w1","kind":"vscode","ts":'"$(date +%s)"',"active":true,"focused":false,"state":{"app":"VS Code","project":"p","language":"TypeScript","mode":"Editing","startedAt":2000}}'
     sleep 5
   done
 ) &
@@ -67,14 +67,14 @@ VS_PID=$!
 
 echo "=== 1. unfocused VS Code gets presence ==="
 sleep 2.5
-last_activity | grep -q 'details=p state=Hero.tsx' || fail "VS Code presence missing"
+last_activity | grep -q 'details=p state=Editing' || fail "VS Code presence missing"
 
 echo "=== 2. unfocused VS Code keeps presence past idle hold (12s) ==="
 BEFORE=$(activity_count)
 sleep 12
 AFTER=$(activity_count)
 [ "${BEFORE}" -eq "${AFTER}" ] || fail "RPC churn while unfocused (${BEFORE} -> ${AFTER})"
-last_activity | grep -q 'details=p state=Hero.tsx' || fail "unfocused presence cleared"
+last_activity | grep -q 'details=p state=Editing' || fail "unfocused presence cleared"
 
 echo "=== 3. single IPC client connection ==="
 [ "$(grep -c 'client connected' "${MOCK_LOG}")" -eq 1 ] || fail "more than one IPC client"
@@ -87,7 +87,7 @@ echo active > "${OC_MODE_FILE}"
     ts=$(date +%s)
     mode=$(cat "${OC_MODE_FILE}")
     if [ "${mode}" = "active" ]; then
-      put '{"sourceId":"opencode:/x","kind":"opencode","ts":'"${ts}"',"active":true,"state":{"app":"OpenCode","project":"p","model":"Kimi K3","activity":"Implementing auth","file":"auth.ts","startedAt":1000000}}'
+      put '{"sourceId":"opencode:/x","kind":"opencode","ts":'"${ts}"',"active":true,"state":{"app":"OpenCode","project":"p","model":"Kimi K3","mode":"Thinking","startedAt":1000000}}'
     else
       put '{"sourceId":"opencode:/x","kind":"opencode","ts":'"${ts}"',"active":false,"state":{"app":"OpenCode","project":"p","model":"Kimi K3"}}'
     fi
@@ -96,20 +96,20 @@ echo active > "${OC_MODE_FILE}"
 ) &
 OC_PID=$!
 sleep 2.5
-last_activity | grep -q 'details=Kimi K3 state=Thinking...' || fail "OpenCode did not win"
+last_activity | grep -q 'details=p state=Thinking' || fail "OpenCode did not win"
 
 echo "=== 5. OpenCode idle -> VS Code returns after 15s hold ==="
 BEFORE=$(activity_count)
 echo idle > "${OC_MODE_FILE}"
 sleep 24
-last_activity | grep -q 'details=p state=Hero.tsx' || fail "VS Code did not take over after OpenCode idle"
+last_activity | grep -q 'details=p state=Editing' || fail "VS Code did not take over after OpenCode idle"
 AFTER=$(activity_count)
 [ $((AFTER - BEFORE)) -le 2 ] || fail "excessive updates during idle transition (${BEFORE} -> ${AFTER})"
 
 echo "=== 6. OpenCode re-active wins immediately ==="
 echo active > "${OC_MODE_FILE}"
 sleep 8
-last_activity | grep -q 'details=Kimi K3 state=Thinking...' || fail "OpenCode did not re-win"
+last_activity | grep -q 'details=p state=Thinking' || fail "OpenCode did not re-win"
 
 echo "=== 7. heartbeats stop -> presence clears via TTL ==="
 BEFORE=$(activity_count)
@@ -129,7 +129,7 @@ echo focused > "${W2_MODE_FILE}"
 (
   while true; do
     mode=$(cat "${W2_MODE_FILE}")
-    put '{"sourceId":"vscode:w2","kind":"vscode","ts":'"$(date +%s)"',"active":true,"focused":'"$([ "${mode}" = "focused" ] && echo true || echo false)"',"state":{"app":"VS Code","project":"w2proj","file":"Other.ts","language":"Go","branch":"dev","startedAt":3000}}'
+    put '{"sourceId":"vscode:w2","kind":"vscode","ts":'"$(date +%s)"',"active":true,"focused":'"$([ "${mode}" = "focused" ] && echo true || echo false)"',"state":{"app":"VS Code","project":"w2proj","language":"Go","mode":"Editing","startedAt":3000}}'
     sleep 5
   done
 ) &
@@ -143,14 +143,14 @@ VS2_PID=$!
 ) &
 VS_PID=$!
 sleep 2.5
-last_activity | grep -q 'details=w2proj state=Other.ts' || fail "focused window did not win"
+last_activity | grep -q 'details=w2proj state=Editing' || fail "focused window did not win"
 
 echo unfocused > "${W2_MODE_FILE}"
 BEFORE=$(activity_count)
 sleep 12
 AFTER=$(activity_count)
 [ "${BEFORE}" -eq "${AFTER}" ] || fail "multi-window flip-flop (${BEFORE} -> ${AFTER})"
-last_activity | grep -q 'details=w2proj state=Other.ts' || fail "last focused window lost stability"
+last_activity | grep -q 'details=w2proj state=Editing' || fail "last focused window lost stability"
 
 echo ""
 echo "PASS: unfocused persistence, priority, TTL expiry, multi-window stability"

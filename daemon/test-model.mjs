@@ -38,15 +38,19 @@ for (const [p, m] of cases) {
   console.log(`${p}/${m} -> ${result}`);
 }
 
-// privacy: file basename only
+// privacy: file paths and file names are not sent to the daemon
 captured.length = 0;
 await hooks.event({ event: { type: "file.edited", properties: { file: "/test/project/src/auth.ts" } } });
 await hooks["chat.message"]({ sessionID: "p1", model: { providerID: "x", modelID: "y" } });
 await new Promise((r) => setTimeout(r, 600));
 const body = captured[captured.length - 1];
-console.log("file field:", body.state.file);
-if (body.state.file.includes("/")) {
-  console.log("FAIL: absolute path leaked");
+console.log("state:", JSON.stringify(body.state));
+if ("file" in body.state || JSON.stringify(body.state).includes("/test/project")) {
+  console.log("FAIL: file path leaked");
+  process.exit(1);
+}
+if (body.state.mode !== "Editing") {
+  console.log("FAIL: editing mode was not propagated");
   process.exit(1);
 }
 
