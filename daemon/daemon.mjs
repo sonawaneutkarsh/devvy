@@ -108,7 +108,7 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({
       ok: true,
       service: "devvy",
-      launchAgent: "com.rich.discord-presence",
+      launchAgent: "com.sonawaneutkarsh.devvy",
     }));
     return;
   }

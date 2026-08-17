@@ -48,7 +48,18 @@ priority over an active unfocused window. When focus state is equal,
 Heartbeats do not affect selection. Sources expire after the existing 15-second
 TTL, and Discord updates remain deduplicated and throttled.
 
-## Install (macOS)
+## Quick Install (macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sonawaneutkarsh/devvy/main/install.sh | bash
+```
+
+This downloads the pinned V3.0.1 release, verifies its SHA-256 checksum, and
+installs the daemon, V3 LaunchAgent, bundled VSIX, and integrations. The
+default install directory is `~/.local/share/devvy`; set `DEVVY_INSTALL_DIR`
+to override it. The installer is idempotent, starts at login, restarts after
+crashes, and writes logs under the installed daemon's `.live-ipc` directory.
+The bootstrapper never executes an unverified downloaded script.
 
 For a checkout:
 
@@ -59,21 +70,12 @@ cd devvy
 curl -fsS http://127.0.0.1:17377/healthz
 ```
 
-The eventual release command is:
-
-```bash
-curl -fsSL https://github.com/sonawaneutkarsh/devvy/releases/latest/download/install.sh | bash
-```
-
-It will work only after a GitHub Release includes both `install.sh` and
-`devvy-macos.tar.gz`; no release is published by this repository change. The
-installer detects macOS and Node.js 18+, creates or updates only Devvy's
-LaunchAgent, installs optional OpenCode/Command Code files when their commands
-are detected, starts the existing daemon, and checks `/healthz`. It preserves an
-existing `daemon/config.json` when installing from a release archive.
+The checkout installer uses the same V3 LaunchAgent and preserves an existing
+`daemon/config.json`. A future GitHub Release must publish the versioned
+`devvy-macos.tar.gz` payload whose SHA-256 is pinned in the bootstrapper.
 
 The installer changes:
-- `~/Library/LaunchAgents/com.rich.discord-presence.plist`
+- `~/Library/LaunchAgents/com.sonawaneutkarsh.devvy.plist`
 - Devvy integration files under `~/.config/opencode/plugins/` and
   `~/.commandcode/mods/` only when the matching tool is installed
 - Release installs: `~/.local/share/devvy` (override with `DEVVY_INSTALL_DIR`)
@@ -81,25 +83,21 @@ The installer changes:
 It downloads only the official GitHub Release archive, does not use credentials,
 and collects/transmits no data.
 
-## VS Code extension
+## VS Code Extension
 
 The extension sends safe state only to `http://127.0.0.1:17377/state`; it does
 not create a Discord connection. It supports focused/editor changes, workspace
 and Git branch refreshes, heartbeats, graceful deactivation, multiple windows,
 and automatic recovery after daemon restarts.
 
-Marketplace publication has **not** happened. For development/testing:
+For manual VSIX installation:
 
 ```bash
-cd vscode-extension
-npx --yes @vscode/vsce package --out ../devvy-3.0.1.vsix
-# VS Code → Extensions: Install from VSIX…
+code --install-extension ./devvy-3.0.1.vsix --force
 ```
 
-This produces `devvy-3.0.1.vsix` at the repository root with standard `vsce`.
-The VSIX excludes source control, `node_modules`, tests, logs, and runtime
-files. Publication still requires creating/verifying the `sonawaneutkarsh`
-Visual Studio Marketplace publisher and publishing the generated VSIX.
+The release artifact already contains the bundled VSIX; users do not need
+`npm`, `npx`, or `vsce`. Marketplace publication has not happened.
 
 ## OpenCode and Command Code
 
@@ -135,7 +133,7 @@ holds, and asset keys. The existing Discord application assets are:
 After changing it, restart the existing agent:
 
 ```bash
-launchctl kickstart -k gui/$(id -u)/com.rich.discord-presence
+launchctl kickstart -k gui/$(id -u)/com.sonawaneutkarsh.devvy
 ```
 
 The optional `presence` section controls safe fields at the final Discord payload
@@ -172,12 +170,12 @@ Never sent: prompts, todo/session titles, source code, file contents, command
 arguments, credentials, API keys, or absolute filesystem paths. There is one
 consistent presence representation; Devvy has no public/private mode.
 
-## Troubleshooting
+## Status and Troubleshooting
 
 - Check the daemon: `curl -fsS http://127.0.0.1:17377/healthz`
-- Check the agent: `launchctl print gui/$(id -u)/com.rich.discord-presence`
-- Check logs: `daemon/.live-ipc/launchd.stderr.log` in the installed Devvy
-  directory.
+- Check the agent: `launchctl print gui/$(id -u)/com.sonawaneutkarsh.devvy`
+- Check the listener: `lsof -nP -iTCP:17377 -sTCP:LISTEN`
+- Check logs: `~/.local/share/devvy/daemon/.live-ipc/launchd.stderr.log`
 - Discord desktop must be running locally. If it is unavailable, Devvy retries
   its existing IPC connection without affecting publishers.
 - For development run `node daemon/daemon.mjs`; set `PRESENCE_PORT` and
@@ -199,21 +197,19 @@ for test in test-*.mjs; do node "$test"; done
 
 Validate scripts with `bash -n install.sh scripts/package-release.sh` and
 validate `daemon/config.json` with `node -e 'JSON.parse(require("fs").readFileSync("daemon/config.json"))'`.
-Use `scripts/package-release.sh` to create the release archive; upload that
-archive and the root `install.sh` manually to a future GitHub Release.
+Use `scripts/package-release.sh` to create the release archive. Upload the
+archive to the explicit `v3.0.1` GitHub Release and keep the root `install.sh`
+at the pinned commit used by the documented curl command.
 
 ## Uninstall
 
 ```bash
-launchctl bootout gui/$(id -u)/com.rich.discord-presence 2>/dev/null || true
-rm -f ~/Library/LaunchAgents/com.rich.discord-presence.plist
-rm -f ~/.config/opencode/plugins/discord-presence.ts
-rm -f ~/.commandcode/mods/discord-presence.ts
-rm -rf ~/.local/share/devvy       # only if installed from a release
+~/.local/share/devvy/uninstall.sh
 ```
 
-For checkout installs, remove the checkout when no longer needed. Remove the
-Devvy VSIX/extension from VS Code separately.
+The V3 uninstaller removes only Devvy's LaunchAgent, files, logs, integrations,
+and `sonawaneutkarsh.devvy` VS Code extension. It never touches unrelated
+LaunchAgents or extensions.
 
 ## License
 

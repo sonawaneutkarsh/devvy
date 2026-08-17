@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.rich.discord-presence</string>
+    <string>com.sonawaneutkarsh.devvy</string>
 
   <key>ProgramArguments</key>
   <array>
