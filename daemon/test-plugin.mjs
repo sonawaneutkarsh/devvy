@@ -1,0 +1,103 @@
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pluginPath = path.join(__dirname, "..", "integrations", "opencode", "discord-presence.ts");
+const { default: plugin } = await import(`file://${pluginPath}`);
+
+const captured = [];
+globalThis.fetch = async (url, options) => {
+  captured.push({
+    url,
+    method: options?.method,
+    body: JSON.parse(options?.body),
+  });
+  return { ok: true };
+};
+
+const client = {
+  app: {
+    log: async () => {},
+  },
+};
+
+const input = {
+  client,
+  directory: "/test/project",
+  worktree: "/test/project",
+};
+
+function event(type, properties) {
+  return { type, properties };
+}
+
+function findLast() {
+  return captured[captured.length - 1];
+}
+
+async function settle(ms) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+const hooks = await plugin.server(input);
+
+function scenario(name, fn) {
+  captured.length = 0;
+  console.log(`\n=== ${name} ===`);
+  return fn();
+}
+
+await scenario("session created", async () => {
+  await hooks.event({ event: event("session.created", { info: { id: "s1", title: "Build auth" } }) });
+  await settle(600);
+  const body = findLast()?.body;
+  console.log(JSON.stringify(body));
+});
+
+await scenario("session status busy", async () => {
+  await hooks.event({ event: event("session.status", { sessionID: "s1", status: { type: "busy" } }) });
+  await settle(600);
+  console.log(JSON.stringify(findLast()?.body));
+});
+
+await scenario("chat.message detects model", async () => {
+  await hooks["chat.message"]({ sessionID: "s1", model: { providerID: "anthropic", modelID: "claude-sonnet-4-5" } });
+  await settle(600);
+  console.log(JSON.stringify(findLast()?.body));
+});
+
+await scenario("tool execute before", async () => {
+  await hooks["tool.execute.before"]({ tool: "edit", sessionID: "s1" });
+  await settle(600);
+  console.log(JSON.stringify(findLast()?.body));
+});
+
+await scenario("file edited", async () => {
+  await hooks.event({ event: event("file.edited", { file: "/abs/path/auth.ts" }) });
+  await settle(600);
+  console.log(JSON.stringify(findLast()?.body));
+});
+
+await scenario("session idle then grace", async () => {
+  await hooks.event({ event: event("session.idle", { sessionID: "s1" }) });
+  await settle(600);
+  console.log("immediately after idle:", JSON.stringify(findLast()?.body));
+  await settle(15000);
+  console.log("after grace:", JSON.stringify(findLast()?.body));
+});
+
+await scenario("session error", async () => {
+  await hooks.event({ event: event("session.error", { sessionID: "s1" }) });
+  await settle(600);
+  console.log(JSON.stringify(findLast()?.body));
+});
+
+await scenario("dispose", async () => {
+  await hooks["chat.message"]({ sessionID: "s1", model: { providerID: "x", modelID: "y" } });
+  await settle(600);
+  await hooks.dispose();
+  console.log("final:", JSON.stringify(findLast()?.body));
+  console.log("active after dispose:", findLast()?.body?.active);
+});
+
+process.exit(0);

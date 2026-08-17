@@ -1,0 +1,313 @@
+import type {
+  PluginModule,
+  PluginInput,
+  Hooks,
+} from "@opencode-ai/plugin";
+
+type PluginEvent = Parameters<NonNullable<Hooks["event"]>>[0]["event"];
+
+declare const process:
+  | { env?: Record<string, string | undefined> }
+  | undefined;
+
+const DAEMON_URL =
+  typeof process !== "undefined" && process.env?.PRESENCE_DAEMON_URL
+    ? process.env.PRESENCE_DAEMON_URL
+    : "http://127.0.0.1:17377";
+const HEARTBEAT_MS = 5000;
+const DEBOUNCE_MS = 500;
+
+type SessionRecord = {
+  status?: "idle" | "busy" | "retry";
+  updatedAt: number;
+};
+
+type ModelRef = {
+  providerID: string;
+  modelID: string;
+};
+
+function basename(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const parts = String(value).split("/");
+  return parts[parts.length - 1] || undefined;
+}
+
+function stableId(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
+  return (hash >>> 0).toString(36);
+}
+
+function stripControl(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f]/g, "");
+}
+
+function truncate(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return value.slice(0, max - 1) + "…";
+}
+
+function formatModel(providerID: string | undefined, modelID: string | undefined): string | undefined {
+  // The daemon owns display normalization. Keep the original identifier here.
+  return modelID || providerID;
+}
+
+function toolLabel(tool: string): string {
+  switch (tool) {
+    case "edit":
+    case "write":
+    case "patch":
+      return "Editing code";
+    case "bash":
+    case "shell":
+    case "exec":
+      return "Running commands";
+    case "read":
+    case "grep":
+    case "glob":
+    case "find":
+      return "Searching code";
+    default:
+      return "Working on code";
+  }
+}
+
+const plugin: PluginModule = {
+  id: "dev.rich.discord-presence",
+
+  async server(input: PluginInput): Promise<Hooks> {
+    const directory = input.directory || input.worktree || "";
+    const sourceId = `opencode:${stableId(directory)}`;
+    const project = basename(directory) || "OpenCode";
+    const log = (message: string) => {
+      try {
+        const result = input.client.app.log({
+          body: {
+            service: "discord-presence",
+            level: "info",
+            message,
+          },
+        });
+        if (result && typeof result.catch === "function") {
+          result.catch(() => {});
+        }
+      } catch {
+        // logging must never break the plugin
+      }
+    };
+    log(`loaded source=${sourceId}`);
+
+    const sessions = new Map<string, SessionRecord>();
+    let lastModel: ModelRef | undefined;
+    let lastFile: string | undefined;
+    let transientActivity: string | undefined;
+    let active = false;
+    let busySince: number | undefined;
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+    let disposed = false;
+
+    function busyCount(): number {
+      let count = 0;
+      for (const session of sessions.values()) {
+        if (session.status === "busy" || session.status === "retry") count += 1;
+      }
+      return count;
+    }
+
+    function activityText(): string {
+      // Never turn session titles, todo text, or filenames into activity text:
+      // those fields may contain a prompt or source-derived content.
+      return transientActivity || "Thinking...";
+    }
+
+    function computeState() {
+      return {
+        app: "OpenCode",
+        project,
+        model: formatModel(lastModel?.providerID, lastModel?.modelID),
+        activity: truncate(stripControl(activityText()), 128),
+        file: basename(lastFile),
+        startedAt: busySince,
+      };
+    }
+
+    async function send(): Promise<void> {
+      if (disposed) return;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const body = {
+        sourceId,
+        kind: "opencode",
+        ts: Date.now(),
+        active,
+        state: computeState(),
+      };
+      try {
+        await fetch(`${DAEMON_URL}/state`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } catch {
+        // Daemon may be restarting; the heartbeat retries.
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    function scheduleSend(): void {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(send, DEBOUNCE_MS);
+    }
+
+    function recomputeBusy(): void {
+      const busy = busyCount() > 0;
+      active = busy;
+      if (busy) {
+        if (!busySince) busySince = Date.now();
+      } else {
+        busySince = undefined;
+        transientActivity = undefined;
+      }
+    }
+
+    function setSession(sessionID: string, patch: Partial<SessionRecord>): void {
+      const current = sessions.get(sessionID) || { updatedAt: 0 };
+      sessions.set(sessionID, { ...current, ...patch, updatedAt: Date.now() });
+    }
+
+    function pruneSessions(): void {
+      const cutoff = Date.now() - 10 * 60 * 1000;
+      for (const [id, session] of sessions) {
+        if (session.status !== "busy" && session.status !== "retry" && session.updatedAt < cutoff) {
+          sessions.delete(id);
+        }
+      }
+    }
+
+    function handleEvent(event: PluginEvent): void {
+      switch (event.type) {
+        case "session.created":
+        case "session.updated": {
+          const info = event.properties.info;
+          if (!info?.id) break;
+          setSession(info.id, {});
+          scheduleSend();
+          break;
+        }
+        case "session.status": {
+          const status = event.properties.status?.type;
+          const sessionID = event.properties.sessionID;
+          if (!sessionID) break;
+          setSession(sessionID, { status });
+          recomputeBusy();
+          scheduleSend();
+          break;
+        }
+        case "session.idle": {
+          const sessionID = event.properties.sessionID;
+          if (!sessionID) break;
+          setSession(sessionID, { status: "idle" });
+          transientActivity = undefined;
+          recomputeBusy();
+          scheduleSend();
+          break;
+        }
+        case "session.error": {
+          const sessionID = event.properties.sessionID;
+          if (sessionID) setSession(sessionID, { status: "idle" });
+          recomputeBusy();
+          transientActivity = "Session error";
+          scheduleSend();
+          break;
+        }
+        case "todo.updated": {
+          // A todo may contain user prompt text; it is intentionally not sent.
+          scheduleSend();
+          break;
+        }
+        case "file.edited": {
+          lastFile = basename(event.properties.file) || lastFile;
+          transientActivity = "Editing code";
+          scheduleSend();
+          break;
+        }
+        case "message.updated": {
+          const info = event.properties.info;
+          if (info?.role === "user") {
+            lastModel = {
+              providerID: info.model.providerID,
+              modelID: info.model.modelID,
+            };
+          } else if (info?.role === "assistant") {
+            lastModel = {
+              providerID: info.providerID,
+              modelID: info.modelID,
+            };
+          }
+          scheduleSend();
+          break;
+        }
+        case "message.part.updated": {
+          const part = event.properties.part;
+          if (part?.type === "patch" && Array.isArray(part.files) && part.files.length > 0) {
+            lastFile = basename(part.files[part.files.length - 1]) || lastFile;
+            transientActivity = undefined;
+          }
+          scheduleSend();
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    heartbeat = setInterval(() => {
+      pruneSessions();
+      void send();
+    }, HEARTBEAT_MS);
+
+    return {
+      event: async ({ event }) => {
+        handleEvent(event);
+      },
+
+      "chat.message": async ({ sessionID, model }) => {
+        if (model) {
+          lastModel = {
+            providerID: model.providerID,
+            modelID: model.modelID,
+          };
+        }
+        if (sessionID) setSession(sessionID, { status: "busy" });
+        recomputeBusy();
+        scheduleSend();
+      },
+
+      "tool.execute.before": async ({ tool, sessionID }) => {
+        transientActivity = toolLabel(tool);
+        if (sessionID) setSession(sessionID, { status: "busy" });
+        recomputeBusy();
+        scheduleSend();
+      },
+
+      "tool.execute.after": async () => {
+        transientActivity = undefined;
+        scheduleSend();
+      },
+
+      dispose: async () => {
+        if (heartbeat) clearInterval(heartbeat);
+        if (debounceTimer) clearTimeout(debounceTimer);
+        active = false;
+        await send();
+        disposed = true;
+      },
+    };
+  },
+};
+
+export default plugin;

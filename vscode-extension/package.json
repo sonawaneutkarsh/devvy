@@ -1,0 +1,31 @@
+{
+  "name": "devvy",
+  "displayName": "Devvy",
+  "description": "One Discord presence for your entire coding workflow.",
+  "version": "2.0.0",
+  "publisher": "sonawaneutkarsh",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sonawaneutkarsh/devvy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sonawaneutkarsh/devvy/issues"
+  },
+  "homepage": "https://github.com/sonawaneutkarsh/devvy#readme",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "scripts": {
+    "package": "npx --yes @vscode/vsce package --out ../devvy-2.0.0.vsix"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "clientId": "1537878057455452170",
+  "port": 17377,
+  "opencodeIdleTimeoutMs": 15000,
+  "commandcodeIdleTimeoutMs": 15000,
+  "vscodeIdleTimeoutMs": 10000,
+  "assets": {
+    "vscode": "vscode",
+    "opencode": "opencode",
+    "commandcode": "commandcode"
+  }
+}

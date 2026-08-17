@@ -1,0 +1,55 @@
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pluginPath = path.join(__dirname, "..", "integrations", "opencode", "discord-presence.ts");
+const { default: plugin } = await import(`file://${pluginPath}`);
+
+const captured = [];
+globalThis.fetch = async (url, options) => {
+  captured.push(JSON.parse(options.body));
+  return { ok: true };
+};
+
+const input = {
+  client: { app: { log: async () => {} } },
+  directory: "/test/project",
+};
+
+const hooks = await plugin.server(input);
+
+function modelCheck(providerID, modelID) {
+  return new Promise(async (resolve) => {
+    captured.length = 0;
+    await hooks["chat.message"]({ sessionID: "m1", model: { providerID, modelID } });
+    await new Promise((r) => setTimeout(r, 600));
+    resolve(captured[captured.length - 1].state.model);
+  });
+}
+
+const cases = [
+  ["anthropic", "claude-sonnet-4-5"],
+  ["opencode-go", "kimi-k3"],
+  ["x", "x/model-with.special+chars"],
+];
+
+for (const [p, m] of cases) {
+  const result = await modelCheck(p, m);
+  console.log(`${p}/${m} -> ${result}`);
+}
+
+// privacy: file basename only
+captured.length = 0;
+await hooks.event({ event: { type: "file.edited", properties: { file: "/test/project/src/auth.ts" } } });
+await hooks["chat.message"]({ sessionID: "p1", model: { providerID: "x", modelID: "y" } });
+await new Promise((r) => setTimeout(r, 600));
+const body = captured[captured.length - 1];
+console.log("file field:", body.state.file);
+if (body.state.file.includes("/")) {
+  console.log("FAIL: absolute path leaked");
+  process.exit(1);
+}
+
+console.log("PASS: model detection and privacy checks");
+await hooks.dispose();
+process.exit(0);

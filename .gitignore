@@ -1,0 +1,33 @@
+# Runtime state (generated at runtime, never committed)
+**/.live-ipc/
+**/.test-*/
+**/.live-*/
+*.log
+*.sock
+*.socket
+
+# Crash dumps / heap snapshots
+*.heapsnapshot
+*.core
+*.dmp
+
+# Command Code tooling config (personal, not project source)
+.commandcode/
+
+# Loom and internal development notes
+.loom/
+progress/
+
+# Generated release artifacts
+*.vsix
+*.tar.gz
+*.tgz
+*.zip
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
