@@ -31,7 +31,7 @@ curl --fail --location --silent --show-error \
 }
 mkdir -p "${STAGE}/node-runtime" "${STAGE}/devvy/daemon/launchd" \
   "${STAGE}/devvy/integrations/opencode" "${STAGE}/devvy/integrations/commandcode" \
-  "${STAGE}/devvy/runtime"
+  "${STAGE}/devvy/runtime" "${STAGE}/devvy/scripts"
 tar -xJf "${STAGE}/${NODE_ARCHIVE}" -C "${STAGE}/node-runtime" --strip-components=1
 cp "${STAGE}/node-runtime/bin/node" "${STAGE}/devvy/runtime/node"
 cp "${STAGE}/node-runtime/LICENSE" "${STAGE}/devvy/runtime/node.LICENSE"
@@ -44,6 +44,7 @@ cp "${ROOT}/integrations/opencode/discord-presence.ts" "${STAGE}/devvy/integrati
 cp "${ROOT}/integrations/commandcode/discord-presence.ts" "${STAGE}/devvy/integrations/commandcode/"
 cp "${ROOT}/devvy-${VSIX_VERSION}.vsix" "${STAGE}/devvy/"
 cp "${ROOT}/uninstall.sh" "${STAGE}/devvy/"
+cp "${ROOT}/scripts/vscode-cli.sh" "${STAGE}/devvy/scripts/"
 find "${STAGE}" -name '.DS_Store' -delete
 
 # Normalize metadata so repeated builds from the same inputs have stable tar entries.

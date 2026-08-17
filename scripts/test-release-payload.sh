@@ -11,6 +11,7 @@ LIST="$(tar -tzf "${ARCHIVE}")"
 for required in \
   "devvy/runtime/node" \
   "devvy/runtime/node.LICENSE" \
+  "devvy/scripts/vscode-cli.sh" \
   "devvy/daemon/daemon.mjs" \
   "devvy/daemon/config.json" \
   "devvy/daemon/launchd/com.sonawaneutkarsh.devvy.plist" \

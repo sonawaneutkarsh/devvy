@@ -92,9 +92,11 @@ Usually, nothing else is required. Reload VS Code after installation so the
 extension starts, then use one of the supported coding apps. Devvy starts and
 restarts itself in the background.
 
-If VS Code was installed without its `code` command, Devvy still installs and
-runs normally. The installer leaves the bundled extension in the Devvy install
-folder and prints the one command needed after you enable the VS Code command.
+If VS Code is installed, Devvy looks for its bundled CLI directly inside the
+application, so you do not need to enable the `code` command in PATH. If the
+VS Code application is incomplete and its bundled CLI cannot be found, the
+installer stops with a clear error instead of claiming the extension was
+installed.
 
 ## Uninstall
 

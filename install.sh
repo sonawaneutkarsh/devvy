@@ -18,12 +18,12 @@ note() { printf 'Devvy: %s\n' "$*"; }
 
 [ "$(uname -s)" = "Darwin" ] || fail "macOS is required."
 case "$(uname -m)" in
-  arm64) ARCH="arm64"; RELEASE_SHA256="3201f48eb3965e2aa029b2fc3a68f42aab116c14e03440d0196e40f73c0b3d80";;
-  x86_64) ARCH="x86_64"; RELEASE_SHA256="edb114fd591d0c04446f797c305bbc980b804ee4b779bbaae46efb58ba3ac3dd";;
+  arm64) ARCH="arm64"; RELEASE_SHA256="139de3e0b44a8f130993a912ec6b77412c7c7402ddf6eb75d276c62842a814e4";;
+  x86_64) ARCH="x86_64"; RELEASE_SHA256="3a002820e96ab2a52be224c87d8227d9256aeda5767ea2edcfb4411bea14c516";;
   *) fail "unsupported macOS architecture: $(uname -m)";;
 esac
 RELEASE_ASSET_NAME="devvy-macos-${ARCH}.tar.gz"
-RELEASE_ASSET_URL="${REPO_URL}/releases/download/${RELEASE_VERSION}/${RELEASE_ASSET_NAME}?download=1"
+RELEASE_ASSET_URL="${DEVVY_RELEASE_ASSET_URL:-${REPO_URL}/releases/download/${RELEASE_VERSION}/${RELEASE_ASSET_NAME}?download=1}"
 note "Installing Devvy ${RELEASE_VERSION} for ${ARCH}."
 
 command -v curl >/dev/null 2>&1 || fail "curl is required."
@@ -32,9 +32,13 @@ command -v shasum >/dev/null 2>&1 || fail "shasum is required to verify download
 command -v launchctl >/dev/null 2>&1 || fail "launchctl was not found."
 command -v lsof >/dev/null 2>&1 || fail "lsof was not found."
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_ORIGIN="${BASH_SOURCE[0]:-}"
+SCRIPT_DIR=""
+if [ -n "${SCRIPT_ORIGIN}" ] && [ -f "${SCRIPT_ORIGIN}" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_ORIGIN}")" && pwd -P)"
+fi
 SOURCE_DIR=""
-if [ -f "${SCRIPT_DIR}/daemon/daemon.mjs" ] && [ -f "${SCRIPT_DIR}/daemon/launchd/${LABEL}.plist" ]; then
+if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/daemon/daemon.mjs" ] && [ -f "${SCRIPT_DIR}/daemon/launchd/${LABEL}.plist" ]; then
   SOURCE_DIR="${SCRIPT_DIR}"
 else
   TEMP_DIR="$(mktemp -d)"
@@ -84,13 +88,15 @@ if [ -f "${INSTALL_DIR}/daemon/config.json" ]; then
   SAVED_CONFIG="${TEMP_DIR:-$(mktemp -d)}/devvy-config.json"
   cp "${INSTALL_DIR}/daemon/config.json" "${SAVED_CONFIG}"
 fi
-rm -rf "${INSTALL_DIR}/daemon" "${INSTALL_DIR}/integrations" "${INSTALL_DIR}/runtime"
+rm -rf "${INSTALL_DIR}/daemon" "${INSTALL_DIR}/integrations" "${INSTALL_DIR}/runtime" "${INSTALL_DIR}/scripts"
 mkdir -p "${INSTALL_DIR}/daemon/launchd" "${INSTALL_DIR}/integrations/opencode" "${INSTALL_DIR}/integrations/commandcode" "${INSTALL_DIR}/runtime"
+mkdir -p "${INSTALL_DIR}/scripts"
 cp "${SOURCE_DIR}/daemon/arbitration.mjs" "${SOURCE_DIR}/daemon/daemon.mjs" "${SOURCE_DIR}/daemon/discord-ipc.mjs" \
   "${SOURCE_DIR}/daemon/model-display.mjs" "${SOURCE_DIR}/daemon/presence.mjs" "${SOURCE_DIR}/daemon/config.json" "${INSTALL_DIR}/daemon/"
 cp "${PLIST_SRC}" "${INSTALL_DIR}/daemon/launchd/"
 cp "${SOURCE_DIR}/integrations/opencode/discord-presence.ts" "${INSTALL_DIR}/integrations/opencode/"
 cp "${SOURCE_DIR}/integrations/commandcode/discord-presence.ts" "${INSTALL_DIR}/integrations/commandcode/"
+cp "${SOURCE_DIR}/scripts/vscode-cli.sh" "${INSTALL_DIR}/scripts/"
 cp "${NODE_SOURCE}" "${INSTALL_DIR}/runtime/node"
 if [ -f "${NODE_LICENSE_SOURCE}" ]; then cp "${NODE_LICENSE_SOURCE}" "${INSTALL_DIR}/runtime/node.LICENSE"; fi
 chmod 755 "${INSTALL_DIR}/runtime/node"
@@ -122,19 +128,18 @@ install_integration() {
 install_integration opencode "${REPO_DIR}/integrations/opencode/discord-presence.ts" "${HOME}/.config/opencode/plugins/discord-presence.ts"
 install_integration commandcode "${REPO_DIR}/integrations/commandcode/discord-presence.ts" "${HOME}/.commandcode/mods/discord-presence.ts"
 
-VS_CODE_APP=""
-for candidate in "/Applications/Visual Studio Code.app" "${HOME}/Applications/Visual Studio Code.app"; do
-  [ -d "${candidate}" ] && VS_CODE_APP="${candidate}" && break
-done
-if command -v code >/dev/null 2>&1 && [ -f "${VSIX_PATH}" ]; then
-  code --install-extension "${VSIX_PATH}" --force >/dev/null || fail "VS Code could not install the Devvy VSIX."
-  code --list-extensions --show-versions | awk -F@ '$1 == "sonawaneutkarsh.devvy" { found=1; print "Devvy: VS Code extension installed: " $0 } END { exit !found }' ||
+CLI_HELPER="${SOURCE_DIR}/scripts/vscode-cli.sh"
+[ -f "${CLI_HELPER}" ] || fail "the Devvy payload is missing its VS Code integration helper."
+# shellcheck source=/dev/null
+source "${CLI_HELPER}"
+if [ -n "${DEVVY_VSCODE_CLI}" ] && [ -f "${VSIX_PATH}" ]; then
+  "${DEVVY_VSCODE_CLI}" --install-extension "${VSIX_PATH}" --force >/dev/null || fail "VS Code could not install the Devvy VSIX."
+  "${DEVVY_VSCODE_CLI}" --list-extensions --show-versions | awk -F@ '$1 == "sonawaneutkarsh.devvy" { found=1; print "Devvy: VS Code extension installed: " $0 } END { exit !found }' ||
     fail "VS Code did not report sonawaneutkarsh.devvy after installation."
-elif [ -n "${VS_CODE_APP}" ]; then
-  note "VS Code is installed, but the code CLI is unavailable. Enable Shell Command: Install 'code' command in PATH, then run:"
-  note "code --install-extension ${INSTALLED_VSIX_PATH} --force"
+elif [ -n "${DEVVY_VSCODE_APP}" ]; then
+  fail "VS Code was found at ${DEVVY_VSCODE_APP}, but its bundled CLI could not be located. Reinstall VS Code from Microsoft and run the installer again."
 else
-  note "VS Code was not detected; the bundled extension remains at ${INSTALLED_VSIX_PATH}."
+  note "VS Code was not detected; the daemon is installed and the bundled extension is available at ${INSTALLED_VSIX_PATH}."
 fi
 
 launchctl print "gui/${UID_VALUE}/${LABEL}" >/dev/null 2>&1 || fail "V4 LaunchAgent is not loaded."
