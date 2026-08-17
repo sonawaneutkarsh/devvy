@@ -92,11 +92,11 @@ Marketplace publication has **not** happened. For development/testing:
 
 ```bash
 cd vscode-extension
-npm run package
+npx --yes @vscode/vsce package --out ../devvy-3.0.1.vsix
 # VS Code → Extensions: Install from VSIX…
 ```
 
-This produces `devvy-3.0.0.vsix` at the repository root with standard `vsce`.
+This produces `devvy-3.0.1.vsix` at the repository root with standard `vsce`.
 The VSIX excludes source control, `node_modules`, tests, logs, and runtime
 files. Publication still requires creating/verifying the `sonawaneutkarsh`
 Visual Studio Marketplace publisher and publishing the generated VSIX.

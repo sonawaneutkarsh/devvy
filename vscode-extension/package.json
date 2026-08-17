@@ -2,7 +2,7 @@
   "name": "devvy",
   "displayName": "Devvy",
   "description": "One Discord presence for your entire coding workflow.",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "publisher": "sonawaneutkarsh",
   "repository": {
     "type": "git",
@@ -18,14 +18,17 @@
   "categories": [
     "Other"
   ],
+  "keywords": [
+    "discord",
+    "rich presence",
+    "developer tools",
+    "ai"
+  ],
   "main": "./extension.js",
   "activationEvents": [
     "onStartupFinished"
   ],
   "extensionKind": [
     "ui"
-  ],
-  "scripts": {
-    "package": "npx --yes @vscode/vsce package --out ../devvy-3.0.0.vsix"
-  }
+  ]
 }

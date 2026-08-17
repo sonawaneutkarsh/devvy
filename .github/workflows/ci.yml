@@ -26,4 +26,4 @@ jobs:
           for test in daemon/test-*.sh; do "$test"; done
       - name: Package VS Code extension
         working-directory: vscode-extension
-        run: npm run package
+        run: npx --yes @vscode/vsce package --out ../devvy-3.0.1.vsix
