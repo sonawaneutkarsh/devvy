@@ -8,5 +8,15 @@
     "vscode": "vscode",
     "opencode": "opencode",
     "commandcode": "commandcode"
+  },
+  "presence": {
+    "showModel": true,
+    "showActivity": true,
+    "showAgent": true,
+    "showProject": true,
+    "showFile": true,
+    "showLanguage": true,
+    "showBranch": false,
+    "showDirty": false
   }
 }

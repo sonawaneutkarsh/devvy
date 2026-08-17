@@ -48,10 +48,16 @@ function scenario(name, fn) {
 }
 
 await scenario("session created", async () => {
-  await hooks.event({ event: event("session.created", { info: { id: "s1", title: "Build auth" } }) });
+  await hooks.event({ event: event("session.created", {
+    info: { id: "s1", title: "Use John's credentials in production" },
+    prompt: "send the private source code",
+  }) });
   await settle(600);
   const body = findLast()?.body;
   console.log(JSON.stringify(body));
+  if (JSON.stringify(body).includes("credentials") || JSON.stringify(body).includes("private source")) {
+    throw new Error("session data leaked into publisher state");
+  }
 });
 
 await scenario("session status busy", async () => {
@@ -67,9 +73,17 @@ await scenario("chat.message detects model", async () => {
 });
 
 await scenario("tool execute before", async () => {
-  await hooks["tool.execute.before"]({ tool: "edit", sessionID: "s1" });
+  await hooks["tool.execute.before"]({
+    tool: "edit",
+    sessionID: "s1",
+    args: { command: "cat /etc/passwd", source: "const token = 'secret'" },
+  });
   await settle(600);
-  console.log(JSON.stringify(findLast()?.body));
+  const body = findLast()?.body;
+  console.log(JSON.stringify(body));
+  if (JSON.stringify(body).includes("passwd") || JSON.stringify(body).includes("secret")) {
+    throw new Error("tool arguments leaked into publisher state");
+  }
 });
 
 await scenario("file edited", async () => {

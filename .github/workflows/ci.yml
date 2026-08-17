@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Validate scripts and daemon
+        run: |
+          bash -n install.sh scripts/package-release.sh
+          node --check daemon/daemon.mjs
+          node --check daemon/discord-ipc.mjs
+          node --check daemon/model-display.mjs
+          node --check daemon/presence.mjs
+          node -e 'JSON.parse(require("fs").readFileSync("daemon/config.json"))'
+      - name: Run daemon tests
+        run: |
+          for test in daemon/test-*.mjs; do node "$test"; done
+          for test in daemon/test-*.sh; do "$test"; done
+      - name: Package VS Code extension
+        working-directory: vscode-extension
+        run: npm run package

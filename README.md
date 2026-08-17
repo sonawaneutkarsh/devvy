@@ -15,6 +15,22 @@ VS Code ────────┘
 The daemon is the **only** Discord IPC/RPC client. Integrations never connect
 to Discord, cloud services, accounts, databases, or telemetry.
 
+## What's new in V3
+
+V3 adds configurable visibility for supported presence fields through
+`daemon/config.json`. Model, activity, agent identity, project, file, and
+language visibility can be controlled independently; branch and dirty state are
+opt-in. All values pass through final Discord-boundary sanitization: model
+names are conservatively classified, activities are allowlisted, and project
+and file values are basename-only.
+
+OpenCode prompts, TODOs, session titles, source code, commands, command output,
+tool arguments, credentials, API keys, tokens, and passwords never reach
+Discord. Active focused VS Code windows now take priority over active
+unfocused windows, with last-focused stability when focus state is equal. The
+VS Code extension is version `3.0.0`, and CI validates daemon tests and VSIX
+packaging.
+
 ## What is shown
 
 Devvy uses a friendly model label such as `GLM 5.3` or `DeepSeek V4 Pro` and
@@ -26,9 +42,11 @@ and file basename/language when available.
 
 Source priority is OpenCode, then Command Code, then VS Code. An active source
 beats an idle-held source. Within a source kind, a newer real active transition
-wins; ties use a stable source ID. Heartbeats do not affect selection. Sources
-expire after the existing 15-second TTL, and Discord updates remain deduplicated
-and throttled.
+wins; ties use a stable source ID. For VS Code, an active focused window takes
+priority over an active unfocused window. When focus state is equal,
+`lastFocusedAt` provides stable focus recency before normal activity recency.
+Heartbeats do not affect selection. Sources expire after the existing 15-second
+TTL, and Discord updates remain deduplicated and throttled.
 
 ## Install (macOS)
 
@@ -78,7 +96,7 @@ npm run package
 # VS Code → Extensions: Install from VSIX…
 ```
 
-This produces `devvy-2.0.0.vsix` at the repository root with standard `vsce`.
+This produces `devvy-3.0.0.vsix` at the repository root with standard `vsce`.
 The VSIX excludes source control, `node_modules`, tests, logs, and runtime
 files. Publication still requires creating/verifying the `sonawaneutkarsh`
 Visual Studio Marketplace publisher and publishing the generated VSIX.
@@ -97,6 +115,12 @@ cp integrations/commandcode/discord-presence.ts ~/.commandcode/mods/
 Restart the relevant application after installation. Both publishers retry
 quietly on a daemon outage; their next heartbeat recovers automatically.
 
+The Command Code file is a host-provided integration. Standalone editors may
+report TypeScript diagnostics because `@commandcode/harness` and the host's
+Node typings are not dependencies of this repository. Command Code supplies
+those types and runtime APIs when it loads the integration; no local stubs or
+production dependencies are required.
+
 ## Configuration
 
 `daemon/config.json` centralizes the Discord application ID, local port, idle
@@ -114,12 +138,35 @@ After changing it, restart the existing agent:
 launchctl kickstart -k gui/$(id -u)/com.rich.discord-presence
 ```
 
+The optional `presence` section controls safe fields at the final Discord payload
+boundary. Missing or invalid values use the defaults below, so existing config
+files continue to work:
+
+```json
+"presence": {
+  "showModel": true,
+  "showActivity": true,
+  "showAgent": true,
+  "showProject": true,
+  "showFile": true,
+  "showLanguage": true,
+  "showBranch": false,
+  "showDirty": false
+}
+```
+
+Model and activity are used by OpenCode and Command Code. Project, file, and
+language are used by VS Code. Branch and dirty state are collected by the VS
+Code publisher and can be displayed only when explicitly enabled. Agent
+identity controls the existing Discord asset and fallback application label.
+
 ## Privacy
 
-Only safe metadata is published: source type, project/file basenames, language,
-a raw model identifier sent locally for normalization, and an allowlisted
-activity label. Discord receives the friendly model label and safe presence
-fields only.
+Only safe metadata is published: project/file basenames, language, an
+optionally enabled validated branch or dirty-state label, a friendly validated
+model label, and an allowlisted activity label. Visibility settings do not
+disable sanitization, and the daemon applies the same checks immediately before
+building the Discord payload.
 
 Never sent: prompts, todo/session titles, source code, file contents, command
 arguments, credentials, API keys, or absolute filesystem paths. There is one

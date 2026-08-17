@@ -2,7 +2,7 @@
   "name": "devvy",
   "displayName": "Devvy",
   "description": "One Discord presence for your entire coding workflow.",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "publisher": "sonawaneutkarsh",
   "repository": {
     "type": "git",
@@ -26,6 +26,6 @@
     "ui"
   ],
   "scripts": {
-    "package": "npx --yes @vscode/vsce package --out ../devvy-2.0.0.vsix"
+    "package": "npx --yes @vscode/vsce package --out ../devvy-3.0.0.vsix"
   }
 }
