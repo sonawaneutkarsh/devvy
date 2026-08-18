@@ -15,7 +15,7 @@ for required in \
   "devvy/daemon/daemon.mjs" \
   "devvy/daemon/config.json" \
   "devvy/daemon/launchd/com.sonawaneutkarsh.devvy.plist" \
-  "devvy/devvy-4.0.0.vsix" \
+  "devvy/devvy-4.0.1.vsix" \
   "devvy/uninstall.sh"; do
   printf '%s\n' "${LIST}" | grep -Fx "${required}" >/dev/null
 done

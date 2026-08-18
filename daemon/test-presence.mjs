@@ -32,6 +32,7 @@ assert.equal(safeLanguage("typescript"), "typescript");
 assert.equal(safeLanguage("cat /etc/passwd"), "");
 assert.equal(safeModel("zai-org/GLM-5.3"), "GLM 5.3");
 assert.equal(safeModel("openai/gpt-5.6"), "GPT 5.6");
+assert.equal(safeModel("openai/gpt-5.6-luna"), "GPT 5.6 Luna");
 assert.equal(safeModel("Implement OAuth using John's credentials"), "");
 
 for (const [input, expected] of [
@@ -78,6 +79,12 @@ const unknownModel = buildDiscordActivity({
 assert.equal(unknownModel.details, "project");
 assert.equal(unknownModel.state, "Thinking");
 assert(!JSON.stringify(unknownModel).includes("credentials"));
+
+const luna = buildDiscordActivity({
+  ...source,
+  state: { ...source.state, model: "openai/gpt-5.6-luna", mode: "Thinking" },
+}, visibility);
+assert.equal(luna.state, "Thinking • GPT 5.6 Luna");
 
 const promptState = buildDiscordActivity({
   ...source,

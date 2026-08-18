@@ -38,7 +38,7 @@ const DEFAULT_VISIBILITY = {
 const MODEL_FAMILY_PATTERN = /^(?:glm|gpt|llama|qwen|claude|gemini|mistral|deepseek|codex|kimi)\d*$/;
 const MODEL_VARIANTS = new Set([
   "air", "base", "chat", "code", "coder", "flash", "haiku", "instruct", "large", "max",
-  "mini", "nano", "nova", "opus", "pro", "reasoning", "sol", "sonnet", "small", "thinking",
+  "luna", "mini", "nano", "nova", "opus", "pro", "reasoning", "sol", "sonnet", "small", "thinking",
   "turbo",
 ]);
 

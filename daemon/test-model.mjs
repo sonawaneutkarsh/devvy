@@ -38,6 +38,26 @@ for (const [p, m] of cases) {
   console.log(`${p}/${m} -> ${result}`);
 }
 
+// The current OpenCode SDK's authoritative pre-request hook uses model.id.
+captured.length = 0;
+await hooks["chat.params"]({
+  sessionID: "luna-session",
+  model: { providerID: "openai", id: "gpt-5.6-luna" },
+}, {});
+await new Promise((r) => setTimeout(r, 600));
+const selectedModelBody = captured[captured.length - 1];
+console.log("chat.params model:", selectedModelBody.state.model);
+if (selectedModelBody.state.model !== "gpt-5.6-luna") {
+  console.log("FAIL: authoritative chat.params model was not captured");
+  process.exit(1);
+}
+if (JSON.stringify(selectedModelBody).includes("prompt")
+  || JSON.stringify(selectedModelBody).includes("task")
+  || JSON.stringify(selectedModelBody).includes("/test/project")) {
+  console.log("FAIL: sensitive data leaked with model state");
+  process.exit(1);
+}
+
 // privacy: file paths and file names are not sent to the daemon
 captured.length = 0;
 await hooks.event({ event: { type: "file.edited", properties: { file: "/test/project/src/auth.ts" } } });

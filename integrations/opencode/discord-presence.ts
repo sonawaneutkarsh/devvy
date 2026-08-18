@@ -27,6 +27,12 @@ type ModelRef = {
   modelID: string;
 };
 
+type ModelLike = {
+  providerID?: unknown;
+  modelID?: unknown;
+  id?: unknown;
+};
+
 function basename(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const parts = String(value).split("/");
@@ -42,6 +48,17 @@ function stableId(value: string): string {
 function formatModel(providerID: string | undefined, modelID: string | undefined): string | undefined {
   // The daemon owns display normalization. Keep the original identifier here.
   return modelID || providerID;
+}
+
+function modelRef(value: unknown): ModelRef | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const model = value as ModelLike;
+  const providerID = typeof model.providerID === "string" ? model.providerID : "";
+  const modelID = typeof model.modelID === "string"
+    ? model.modelID
+    : (typeof model.id === "string" ? model.id : "");
+  if (!providerID && !modelID) return undefined;
+  return { providerID, modelID };
 }
 
 function toolLabel(tool: string): string {
@@ -221,15 +238,9 @@ const plugin: PluginModule = {
         case "message.updated": {
           const info = event.properties.info;
           if (info?.role === "user") {
-            lastModel = {
-              providerID: info.model.providerID,
-              modelID: info.model.modelID,
-            };
+            lastModel = modelRef(info.model) || lastModel;
           } else if (info?.role === "assistant") {
-            lastModel = {
-              providerID: info.providerID,
-              modelID: info.modelID,
-            };
+            lastModel = modelRef({ providerID: info.providerID, modelID: info.modelID }) || lastModel;
           }
           scheduleSend();
           break;
@@ -258,12 +269,16 @@ const plugin: PluginModule = {
       },
 
       "chat.message": async ({ sessionID, model }) => {
-        if (model) {
-          lastModel = {
-            providerID: model.providerID,
-            modelID: model.modelID,
-          };
-        }
+        lastModel = modelRef(model) || lastModel;
+        if (sessionID) setSession(sessionID, { status: "busy" });
+        recomputeBusy();
+        scheduleSend();
+      },
+
+      // The SDK model passed here is the model selected for the actual request.
+      // It uses `id`, while chat.message uses `modelID` in older plugin hooks.
+      "chat.params": async ({ sessionID, model }) => {
+        lastModel = modelRef(model) || lastModel;
         if (sessionID) setSession(sessionID, { status: "busy" });
         recomputeBusy();
         scheduleSend();
