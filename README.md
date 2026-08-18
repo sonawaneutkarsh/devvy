@@ -12,9 +12,15 @@ Run this in **Terminal on macOS**:
 curl -fsSL https://raw.githubusercontent.com/sonawaneutkarsh/devvy/main/install.sh | bash
 ```
 
-That is the only setup command. Devvy installs its own isolated runtime, starts
-automatically when you log in, and installs the VS Code extension when VS Code
-and its `code` command are available.
+That is the only setup command. Devvy installs its own isolated runtime and
+handles the rest automatically:
+
+- The background service starts at login.
+- The VS Code extension installs automatically, even without a `code` command
+  in your PATH.
+- OpenCode and Command Code integrations are installed when those apps are
+  available.
+- Discord presence starts updating through the local daemon.
 
 1. Paste the command into Terminal.
 2. Wait for the installation to finish.
@@ -29,9 +35,8 @@ LaunchAgent, or Discord RPC separately. Discord must simply be running.
 
 ![Devvy Discord Rich Presence preview](docs/images/discord-presence.png)
 
-This image is intentionally not included yet. After trying V4 locally, place
-the real screenshot at `docs/images/discord-presence.png` and it will appear
-here automatically.
+This is a real V4.0.1 Discord presence: the project, high-level state, and
+detected model are visible without exposing the task itself.
 
 ## Why Devvy?
 
