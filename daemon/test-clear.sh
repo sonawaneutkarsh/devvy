@@ -41,7 +41,7 @@ sleep 2.5
 # both go inactive but keep heartbeating
 (
   while true; do
-    put '{"sourceId":"opencode:/x","kind":"opencode","ts":'"$(date +%s)"',"active":false,"state":{"app":"OpenCode","project":"p"}}'
+    put '{"sourceId":"opencode:/x","kind":"opencode","ts":'"$(date +%s)"',"active":false,"connected":true,"state":{"app":"OpenCode","project":"p"}}'
     sleep 5
   done
 ) &
@@ -49,7 +49,7 @@ OC_PID=$!
 
 (
   while true; do
-    put '{"sourceId":"vscode:w1","kind":"vscode","ts":'"$(date +%s)"',"active":false,"state":{"app":"VS Code"}}'
+    put '{"sourceId":"vscode:w1","kind":"vscode","ts":'"$(date +%s)"',"active":false,"connected":true,"state":{"app":"VS Code"}}'
     sleep 5
   done
 ) &
@@ -57,6 +57,8 @@ VS_PID=$!
 
 echo "=== wait for idle holds to expire ==="
 sleep 20
+
+grep -q 'ACTIVITY details=p state=Idle' "${MOCK_LOG}"
 
 echo "=== server log ==="
 cat "${MOCK_LOG}"

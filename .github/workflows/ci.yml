@@ -26,7 +26,7 @@ jobs:
           for test in daemon/test-*.sh; do "$test"; done
       - name: Package VS Code extension
         working-directory: vscode-extension
-        run: npx --yes @vscode/vsce package --out ../devvy-4.0.1.vsix
+        run: npx --yes @vscode/vsce package --out ../devvy-4.0.2.vsix
       - name: Validate release payload
         run: |
           DEVVY_ARCH=arm64 ./scripts/package-release.sh /tmp/devvy-macos-arm64.tar.gz

@@ -73,6 +73,10 @@ if (body.state.mode !== "Editing") {
   console.log("FAIL: editing mode was not propagated");
   process.exit(1);
 }
+if (body.connected !== true) {
+  console.log("FAIL: OpenCode source did not remain connected while idle-capable");
+  process.exit(1);
+}
 
 console.log("PASS: model detection and privacy checks");
 await hooks.dispose();

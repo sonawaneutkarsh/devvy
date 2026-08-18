@@ -68,7 +68,7 @@ export default function (cmd: ModApi): void {
       app: 'Command Code',
       project,
       model: lastModel ? truncate(stripControl(lastModel), 128) : undefined,
-      mode: mode || (active ? 'Thinking' : 'Waiting for prompt'),
+      mode: mode || (active ? 'Thinking' : 'Idle'),
       startedAt: busySince,
     };
   }
@@ -79,6 +79,7 @@ export default function (cmd: ModApi): void {
     const body = {
       sourceId,
       kind: 'commandcode',
+      connected: true,
       ts: Date.now(),
       active,
       state: computeState(),

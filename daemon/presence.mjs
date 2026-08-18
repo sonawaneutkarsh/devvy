@@ -128,7 +128,7 @@ function setIdentity(out, project, model, agent, visibility) {
 function setSafeMode(out, source, visibility, displayModel) {
   const mode = source.active
     ? safeMode(source.state?.mode ?? source.state?.activity, "Thinking")
-    : safeMode(source.state?.mode ?? source.state?.activity, "Waiting for prompt");
+    : "Idle";
   const parts = [];
   if (visibility.showActivity) parts.push(mode);
   if (displayModel) parts.push(displayModel);
@@ -152,7 +152,7 @@ export function buildDiscordActivity(source, visibility = defaultVisibility(), a
   const project = visibility.showProject ? safeBasename(state.project) : "";
   if (project) out.details = project;
   else if (visibility.showAgent) out.details = "VS Code";
-  const mode = safeMode(state.mode ?? state.activity, source.active ? "Editing" : "Waiting for prompt");
+  const mode = source.active ? safeMode(state.mode ?? state.activity, "Editing") : "Idle";
   const parts = [];
   if (visibility.showActivity) parts.push(mode);
   if (visibility.showLanguage) {

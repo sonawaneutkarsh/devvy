@@ -128,7 +128,7 @@ const plugin: PluginModule = {
         app: "OpenCode",
         project,
         model: formatModel(lastModel?.providerID, lastModel?.modelID),
-        mode: mode || (active ? "Thinking" : "Waiting for prompt"),
+        mode: mode || (active ? "Thinking" : "Idle"),
         startedAt: busySince,
       };
     }
@@ -140,6 +140,7 @@ const plugin: PluginModule = {
       const body = {
         sourceId,
         kind: "opencode",
+        connected: true,
         ts: Date.now(),
         active,
         state: computeState(),

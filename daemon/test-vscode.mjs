@@ -139,6 +139,10 @@ console.log("=== activate: no focus, no editor ===");
 activate(mockVscode.mock.context);
 await new Promise((r) => setTimeout(r, 600));
 console.log("payload:", JSON.stringify(lastPayload));
+if (lastPayload.connected !== true || lastPayload.state.mode !== "Idle") {
+  console.log("FAIL: idle VS Code presence was not marked connected/Idle");
+  process.exit(1);
+}
 
 console.log("=== focus + editor with language/project ===");
 mockVscode.mock.state.focused = true;
@@ -185,7 +189,7 @@ if (lastPayload.active !== true || lastPayload.focused !== false) {
   console.log("FAIL: unfocused window lost presence eligibility");
   process.exit(1);
 }
-if (lastPayload.state.mode !== "Editing" || "path" in lastPayload.state || "file" in lastPayload.state || "branch" in lastPayload.state) {
+if (lastPayload.state.mode !== "Editing" || lastPayload.connected !== true || "path" in lastPayload.state || "file" in lastPayload.state || "branch" in lastPayload.state) {
   console.log("FAIL: VS Code payload was not reduced to safe high-level state");
   process.exit(1);
 }

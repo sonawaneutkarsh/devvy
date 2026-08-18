@@ -31,7 +31,7 @@ function activate(context) {
       project: info?.project,
       language: info?.language,
       editing: info?.dirty,
-      mode: active ? "Editing" : "Waiting for prompt",
+      mode: active ? "Editing" : "Idle",
       startedAt,
     };
   }
@@ -43,6 +43,7 @@ function activate(context) {
     const body = {
       sourceId: `vscode:${vscode.env.sessionId}`,
       kind: "vscode",
+      connected: true,
       ts: Date.now(),
       active,
       focused,

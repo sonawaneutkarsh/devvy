@@ -58,6 +58,7 @@ assert(lastPayload?.kind === "commandcode", "expected commandcode kind");
 assert(lastPayload?.active === false, "expected idle at session start");
 assert(lastPayload?.state?.project === "project", "project should be basename only");
 assert(lastPayload?.state?.app === "Command Code", "app label should be Command Code");
+assert(lastPayload?.connected === true, "connection flag should be true");
 assert(
   !JSON.stringify(lastPayload?.state).includes("/Users/"),
   "absolute path leaked into state",
@@ -97,7 +98,7 @@ captured.length = 0;
 emit("run_end", { type: "run_end", result: {} });
 await settle(600);
 assert(lastPayload?.active === false, "run_end should mark idle");
-assert(lastPayload?.state?.mode === "Waiting for prompt", "run_end should mark waiting");
+assert(lastPayload?.state?.mode === "Idle", "run_end should mark idle");
 
 // privacy: no description, tool input, or command args leaked
 const all = JSON.stringify(captured);

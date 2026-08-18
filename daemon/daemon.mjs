@@ -36,7 +36,7 @@ function effectiveSource() {
   const now = Date.now();
   const chosen = { opencode: null, commandcode: null, vscode: null };
   for (const source of sources.values()) {
-    if (!(source.active || now - source.lastActiveAt < IDLE_TIMEOUTS[source.kind])) continue;
+    if (!(source.active || source.connected || now - source.lastActiveAt < IDLE_TIMEOUTS[source.kind])) continue;
     if (compareWithinKind(source, chosen[source.kind])) chosen[source.kind] = source;
   }
   return chosen.opencode ?? chosen.commandcode ?? chosen.vscode ?? null;
@@ -81,7 +81,7 @@ function handleState(body) {
   const focusedNow = body.focused === true;
   const source = {
     kind: body.kind, sourceId: body.sourceId, active: body.active, focused: focusedNow,
-    state: body.state, lastSeen: now,
+    state: body.state, connected: body.connected === true, lastSeen: now,
     // Preserve these on heartbeats. This is the critical anti-flip-flop rule.
     lastActiveAt: becomesActive ? now : (previous?.lastActiveAt ?? now),
     busyAt: becomesActive ? now : (previous?.busyAt ?? now),

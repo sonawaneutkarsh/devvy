@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/sonawaneutkarsh/devvy"
-RELEASE_VERSION="v4.0.1"
+RELEASE_VERSION="v4.0.2"
 NODE_RUNTIME_VERSION="v24.19.0"
 NODE_ARM64_SHA256="3f1cf157479c1480352083105e13faf9d008ede98e7e157746b6df940d197b94"
 NODE_X86_64_SHA256="d35e95230f46f6f0751df497c56622c6735e05d5e1fb1630996a005b9d328fe4"
@@ -18,8 +18,8 @@ note() { printf 'Devvy: %s\n' "$*"; }
 
 [ "$(uname -s)" = "Darwin" ] || fail "macOS is required."
 case "$(uname -m)" in
-  arm64) ARCH="arm64"; RELEASE_SHA256="7f11be629f9b005dc4d0cdea3ad676f496145ed7d7ccfa2a07c65f4ba06eea51";;
-  x86_64) ARCH="x86_64"; RELEASE_SHA256="4c16d8606f7985a0890a8806e05e172d79d3c83b8a3a2526875cc3df47db87a1";;
+  arm64) ARCH="arm64"; RELEASE_SHA256="c35d543043b4fe6a8bbd9867c8c244e3346b8b63b932457d8e2fd99f8f0a0fee";;
+  x86_64) ARCH="x86_64"; RELEASE_SHA256="629b3ad6589acf053d0c86c2eb79df59aa7c21786f83a3516b06add27d37f416";;
   *) fail "unsupported macOS architecture: $(uname -m)";;
 esac
 RELEASE_ASSET_NAME="devvy-macos-${ARCH}.tar.gz"
@@ -53,7 +53,7 @@ fi
 
 DAEMON_PATH="${SOURCE_DIR}/daemon/daemon.mjs"
 PLIST_SRC="${SOURCE_DIR}/daemon/launchd/${LABEL}.plist"
-VSIX_VERSION="4.0.1"
+VSIX_VERSION="4.0.2"
 VSIX_PATH="${SOURCE_DIR}/devvy-${VSIX_VERSION}.vsix"
 [ -f "${DAEMON_PATH}" ] && [ -f "${PLIST_SRC}" ] || fail "the Devvy payload is incomplete."
 

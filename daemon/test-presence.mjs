@@ -70,7 +70,7 @@ const waiting = buildDiscordActivity({
   state: { ...source.state, mode: undefined },
 }, visibility);
 assert.equal(waiting.details, "project");
-assert.equal(waiting.state, "Waiting for prompt • GLM 5.3");
+assert.equal(waiting.state, "Idle • GLM 5.3");
 
 const unknownModel = buildDiscordActivity({
   ...source,
@@ -121,7 +121,7 @@ assert.equal(buildDiscordActivity({
   kind: "vscode",
   active: false,
   state: { project: "/private/project" },
-}, visibility).state, "Waiting for prompt");
+}, visibility).state, "Idle");
 assert.equal(buildDiscordActivity(source, { ...visibility, showModel: false }).state, "Thinking");
 assert.equal(buildDiscordActivity(source, { ...visibility, showProject: false }).details, "OpenCode");
 assert.equal(buildDiscordActivity(source, {

@@ -9,8 +9,8 @@ case "${ARCH}" in
   *) printf 'Unsupported DEVVY_ARCH: %s\n' "${ARCH}" >&2; exit 1;;
 esac
 OUT="${1:-${ROOT}/devvy-macos-${ARCH}.tar.gz}"
-VERSION="${DEVVY_VERSION:-4.0.1}"
-VSIX_VERSION="${DEVVY_VSIX_VERSION:-4.0.1}"
+VERSION="${DEVVY_VERSION:-4.0.2}"
+VSIX_VERSION="${DEVVY_VSIX_VERSION:-4.0.2}"
 NODE_VERSION="v24.19.0"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "${STAGE}"' EXIT

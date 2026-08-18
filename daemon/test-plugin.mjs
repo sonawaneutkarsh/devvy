@@ -65,6 +65,7 @@ await scenario("session status busy", async () => {
   await settle(600);
   console.log(JSON.stringify(findLast()?.body));
   if (findLast()?.body?.state?.mode !== "Thinking") throw new Error("busy state was not high-level Thinking");
+  if (findLast()?.body?.connected !== true) throw new Error("OpenCode connection flag missing");
 });
 
 await scenario("chat.message detects model", async () => {
@@ -112,7 +113,7 @@ await scenario("session idle then grace", async () => {
   await hooks.event({ event: event("session.idle", { sessionID: "s1" }) });
   await settle(600);
   console.log("immediately after idle:", JSON.stringify(findLast()?.body));
-  if (findLast()?.body?.state?.mode !== "Waiting for prompt") throw new Error("idle state was not waiting");
+  if (findLast()?.body?.state?.mode !== "Idle") throw new Error("idle state was not Idle");
   await settle(15000);
   console.log("after grace:", JSON.stringify(findLast()?.body));
 });
