@@ -1,9 +1,11 @@
 {
   "name": "devvy",
   "displayName": "Devvy",
-  "description": "One Discord presence for your entire coding workflow.",
+  "description": "One local-first Discord Rich Presence for your whole coding workflow. VS Code, OpenCode, and Command Code combine into one activity. Independent open source.",
   "version": "4.0.2",
   "publisher": "sonawaneutkarsh",
+  "license": "MIT",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/sonawaneutkarsh/devvy.git"
@@ -21,6 +23,7 @@
   "keywords": [
     "discord",
     "rich presence",
+    "local first",
     "developer tools",
     "ai"
   ],

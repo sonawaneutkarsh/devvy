@@ -35,7 +35,7 @@ type ModelLike = {
 
 function basename(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  const parts = String(value).split("/");
+  const parts = String(value).split(/[\\/]/);
   return parts[parts.length - 1] || undefined;
 }
 

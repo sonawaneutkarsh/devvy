@@ -16,7 +16,11 @@ trap cleanup EXIT
 fail() { printf 'Devvy install failed: %s\n' "$*" >&2; exit 1; }
 note() { printf 'Devvy: %s\n' "$*"; }
 
-[ "$(uname -s)" = "Darwin" ] || fail "macOS is required."
+case "$(uname -s)" in
+  Darwin) ;;
+  MINGW*|MSYS*|CYGWIN*) fail "Windows detected. Run install.ps1 in PowerShell instead of the macOS installer." ;;
+  *) fail "macOS is required." ;;
+esac
 case "$(uname -m)" in
   arm64) ARCH="arm64"; RELEASE_SHA256="c35d543043b4fe6a8bbd9867c8c244e3346b8b63b932457d8e2fd99f8f0a0fee";;
   x86_64) ARCH="x86_64"; RELEASE_SHA256="629b3ad6589acf053d0c86c2eb79df59aa7c21786f83a3516b06add27d37f416";;

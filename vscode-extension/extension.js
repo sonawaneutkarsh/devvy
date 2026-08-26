@@ -19,7 +19,6 @@ function activate(context) {
     const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
     return {
       language: doc.languageId,
-      dirty: doc.isDirty,
       project: folder ? folder.name : undefined,
     };
   }
@@ -30,7 +29,6 @@ function activate(context) {
       app: "VS Code",
       project: info?.project,
       language: info?.language,
-      editing: info?.dirty,
       mode: active ? "Editing" : "Idle",
       startedAt,
     };

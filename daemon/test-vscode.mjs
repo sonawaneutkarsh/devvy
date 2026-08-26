@@ -100,8 +100,37 @@ const mockVscode = (() => {
 })();
 
 let lastPayload;
+
+// Privacy regression guard: every payload the extension ever sends must stay
+// high-level. Absolute paths, workspace-internal paths, and unsafe fields are
+// rejected deterministically on every capture, not just at final assertions.
+const FORBIDDEN_SUBSTRINGS = [
+  "/test/project/src/Hero.tsx",
+  "/test/project",
+  "/Users/",
+  "C:\\Users\\",
+];
+const FORBIDDEN_FIELDS = ["editing", "dirty", "path", "file", "branch"];
+
+function assertSafePayload(body) {
+  const serialized = JSON.stringify(body);
+  for (const banned of FORBIDDEN_SUBSTRINGS) {
+    if (serialized.includes(banned)) {
+      console.log(`FAIL: extension payload leaked forbidden text: ${banned}`);
+      process.exit(1);
+    }
+  }
+  for (const field of FORBIDDEN_FIELDS) {
+    if (field in body.state) {
+      console.log(`FAIL: extension payload contains unsafe field: ${field}`);
+      process.exit(1);
+    }
+  }
+}
+
 globalThis.fetch = async (url, options) => {
   lastPayload = JSON.parse(options.body);
+  assertSafePayload(lastPayload);
   return { ok: true };
 };
 
@@ -189,7 +218,7 @@ if (lastPayload.active !== true || lastPayload.focused !== false) {
   console.log("FAIL: unfocused window lost presence eligibility");
   process.exit(1);
 }
-if (lastPayload.state.mode !== "Editing" || lastPayload.connected !== true || "path" in lastPayload.state || "file" in lastPayload.state || "branch" in lastPayload.state) {
+if (lastPayload.state.mode !== "Editing" || lastPayload.connected !== true || "path" in lastPayload.state || "file" in lastPayload.state || "branch" in lastPayload.state || "editing" in lastPayload.state || "dirty" in lastPayload.state) {
   console.log("FAIL: VS Code payload was not reduced to safe high-level state");
   process.exit(1);
 }

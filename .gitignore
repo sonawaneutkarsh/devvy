@@ -16,7 +16,10 @@
 
 # Loom and internal development notes
 .loom/
+.opencode/
 progress/
+.env
+.env.*
 
 # Generated release artifacts
 *.vsix

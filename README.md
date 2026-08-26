@@ -6,13 +6,29 @@ itself.
 
 ## Install
 
-Run this in **Terminal on macOS**:
+Devvy is **one Discord presence for your coding workflow**. Discord must be
+running, but Devvy installs its own runtime and handles the background daemon.
+
+### macOS
+
+Run this in Terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sonawaneutkarsh/devvy/main/install.sh | bash
 ```
 
-That is the only setup command. Devvy installs its own isolated runtime and
+### Windows
+
+Download `devvy-windows-x86_64.zip` from the Devvy release and run
+`windows/install.ps1` in PowerShell. Right-click the file, choose **Run with
+PowerShell**, and follow the one-step installer. It installs the isolated
+runtime, starts Devvy at login, and installs the VS Code extension when VS Code
+is available.
+
+Windows x64 is supported first. If VS Code is not installed, installation still
+succeeds and OpenCode or Command Code can use the daemon when available.
+
+The macOS command above remains the only macOS setup command. Devvy installs its own isolated runtime and
 handles the rest automatically:
 
 - The background service starts at login.
@@ -29,13 +45,13 @@ handles the rest automatically:
 5. Devvy appears on Discord.
 
 You do not need to install Node.js, npm, Homebrew, Python, npx, a VSIX, a
-LaunchAgent, or Discord RPC separately. Discord must simply be running.
+LaunchAgent, Windows service, or Discord RPC separately.
 
 ## What It Looks Like
 
 ![Devvy Discord Rich Presence preview](docs/images/discord-presence.png)
 
-This is a real V4.0.1 Discord presence: the project, high-level state, and
+This is a real V4 Discord presence: the project, high-level state, and
 detected model are visible without exposing the task itself.
 
 ## Why Devvy?
@@ -87,7 +103,7 @@ Devvy intentionally does **not** show:
 - Private filesystem paths
 - Credentials, tokens, or secrets
 
-Everything stays on your Mac. VS Code, OpenCode, and Command Code send small
+Everything stays on your computer. VS Code, OpenCode, and Command Code send small
 structured updates to the local Devvy daemon at `127.0.0.1:17377`. The daemon
 is the only component that communicates with Discord.
 
@@ -108,6 +124,8 @@ installed.
 ```bash
 ~/.local/share/devvy/uninstall.sh
 ```
+
+On Windows, run `uninstall.ps1` from the Devvy installation directory.
 
 This removes Devvy's daemon, isolated runtime, logs, LaunchAgent, integrations,
 and Devvy VS Code extension. It does not remove unrelated LaunchAgents or

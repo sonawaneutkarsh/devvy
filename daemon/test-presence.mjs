@@ -34,6 +34,10 @@ assert.equal(safeModel("zai-org/GLM-5.3"), "GLM 5.3");
 assert.equal(safeModel("openai/gpt-5.6"), "GPT 5.6");
 assert.equal(safeModel("openai/gpt-5.6-luna"), "GPT 5.6 Luna");
 assert.equal(safeModel("Implement OAuth using John's credentials"), "");
+// Secret-shaped strings must never survive as displayable model names.
+assert.equal(safeModel("sk-proj-4f8a2b91c7d3e506f9a1"), "");
+assert.equal(safeModel("ghp_1234567890abcdefghijklmnopqrstuvwxyz"), "");
+assert.equal(safeModel("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"), "");
 
 for (const [input, expected] of [
   ["Thinking...", "Thinking"],

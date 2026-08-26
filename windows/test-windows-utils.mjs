@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { bundledNodePath, verifySha256, windowsArchitecture, windowsInstallDir } from "./windows-utils.mjs";
+
+assert.equal(windowsArchitecture({ PROCESSOR_ARCHITECTURE: "AMD64" }), "x86_64");
+assert.equal(windowsArchitecture({ PROCESSOR_ARCHITEW6432: "AMD64", PROCESSOR_ARCHITECTURE: "x86" }), "x86_64");
+assert.equal(windowsArchitecture({ PROCESSOR_ARCHITECTURE: "ARM64" }), "arm64");
+assert.equal(windowsArchitecture({ PROCESSOR_ARCHITECTURE: "x86" }), undefined);
+assert.equal(windowsInstallDir({ LOCALAPPDATA: "C:\\Users\\Ada\\AppData\\Local" }), "C:\\Users\\Ada\\AppData\\Local\\Devvy");
+assert.equal(bundledNodePath("C:\\Users\\Ada\\AppData\\Local\\Devvy"), path.win32.join("C:\\Users\\Ada\\AppData\\Local\\Devvy", "runtime", "node.exe"));
+const fixture = path.join(os.tmpdir(), `devvy-checksum-${process.pid}.bin`);
+fs.writeFileSync(fixture, "verified artifact");
+const checksum = crypto.createHash("sha256").update("verified artifact").digest("hex");
+assert.equal(verifySha256(fixture, checksum), true);
+assert.equal(verifySha256(fixture, "0".repeat(64)), false);
+fs.writeFileSync(fixture, "corrupt artifact");
+assert.equal(verifySha256(fixture, checksum), false);
+fs.rmSync(fixture, { force: true });
+console.log("PASS: Windows architecture and path handling");
