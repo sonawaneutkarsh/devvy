@@ -6,6 +6,7 @@ TEST_DIR="${ROOT}/.test-unfocused"
 IPC_DIR="${TEST_DIR}/ipc"
 MOCK_LOG="${IPC_DIR}/server.log"
 DAEMON_LOG="${TEST_DIR}/daemon.log"
+source "${ROOT}/assertions.sh"
 PORT=18383
 
 rm -rf "${TEST_DIR}"
@@ -31,10 +32,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for i in $(seq 1 30); do
-  curl -sf "http://127.0.0.1:${PORT}/healthz" > /dev/null && break
-  sleep 0.2
-done
+wait_for_health "${PORT}"
 
 put() {
   curl -s -X PUT "http://127.0.0.1:${PORT}/state" \
@@ -45,15 +43,7 @@ activity_count() {
   grep -cE 'ACTIVITY (details|cleared)' "${MOCK_LOG}" || true
 }
 
-last_activity() {
-  grep -E 'ACTIVITY (details|cleared)' "${MOCK_LOG}" | tail -1
-}
 
-fail() {
-  echo "FAIL: $1"
-  echo "--- last activity: $(last_activity)"
-  exit 1
-}
 
 # Unfocused VS Code window with an open editor (new extension contract:
 # active=true even while focused=false), heartbeating every 5s.

@@ -1,51 +1,109 @@
 name: CI
 
+# Normal changes run here. release.yml calls this same workflow (workflow_call)
+# as its gate, so a tag can only publish after this exact verification passes.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_call:
+    inputs:
+      upload-artifacts:
+        description: Upload the verified release payloads for the calling workflow
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # github.workflow is the caller's name under workflow_call, so a release run
+  # never shares (or cancels) a group with a normal CI run.
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  verify:
+    name: Test, package, and build payloads
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Validate scripts and daemon
+          cache: npm
+
+      - name: Resolve version
+        id: version
         run: |
-          bash -n install.sh scripts/package-release.sh
-          node --check daemon/daemon.mjs
-          node --check daemon/discord-ipc.mjs
-          node --check daemon/model-display.mjs
-          node --check daemon/presence.mjs
-          node --check windows/windows-utils.mjs
+          VERSION="$(./scripts/version.sh)"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "Devvy version: ${VERSION}"
+
+      - name: Check version references
+        run: ./scripts/check-versions.sh
+
+      - name: Validate script syntax
+        run: |
+          for f in install.sh uninstall.sh scripts/*.sh daemon/*.sh; do bash -n "$f"; done
+          for f in daemon/*.mjs windows/*.mjs scripts/*.mjs; do node --check "$f"; done
           node -e 'JSON.parse(require("fs").readFileSync("daemon/config.json"))'
-      - name: Run daemon tests
-        run: |
-          for test in daemon/test-*.mjs; do node "$test"; done
-          for test in daemon/test-*.sh; do "$test"; done
-          node windows/test-windows-utils.mjs
+
+      - name: Run test suite (24 scripts)
+        run: npm test
+
       - name: Install pinned packaging tooling
         run: npm ci
+
       - name: Package VS Code extension
         working-directory: vscode-extension
-        run: npx --no-install vsce package --out ../devvy-4.0.2.vsix
+        run: npx --no-install vsce package --out "../devvy-${{ steps.version.outputs.version }}.vsix"
+
       - name: Inspect VSIX contents
+        env:
+          VSIX: devvy-${{ steps.version.outputs.version }}.vsix
         run: |
-          unzip -l devvy-4.0.2.vsix
-          FILES="$(unzip -Z1 devvy-4.0.2.vsix | sort)"
+          unzip -l "${VSIX}"
+          FILES="$(unzip -Z1 "${VSIX}" | sort)"
           EXPECTED=$'[Content_Types].xml\nextension.vsixmanifest\nextension/LICENSE.txt\nextension/extension.js\nextension/icon.png\nextension/package.json\nextension/readme.md'
-          test "${FILES}" = "${EXPECTED}" || { printf 'Unexpected VSIX contents:\n%s\n' "${FILES}" >&2; exit 1; }
-          ! unzip -Z1 devvy-4.0.2.vsix | grep -Ei '\.log$|\.env$|\.vsix$|node_modules|\.git'
-      - name: Validate release payload
+          if [ "${FILES}" != "${EXPECTED}" ]; then
+            printf '::error::Unexpected VSIX contents\n'
+            diff <(printf '%s\n' "${EXPECTED}") <(printf '%s\n' "${FILES}") || true
+            exit 1
+          fi
+          if unzip -Z1 "${VSIX}" | grep -Ei '\.log$|\.env$|\.vsix$|node_modules|\.git'; then
+            printf '::error::VSIX contains development files (listed above)\n'
+            exit 1
+          fi
+
+      - name: Build and validate macOS payloads
         run: |
-          DEVVY_ARCH=arm64 ./scripts/package-release.sh /tmp/devvy-macos-arm64.tar.gz
-          DEVVY_ARCH=x86_64 ./scripts/package-release.sh /tmp/devvy-macos-x86_64.tar.gz
-          ./scripts/test-release-payload.sh arm64 /tmp/devvy-macos-arm64.tar.gz
-          ./scripts/test-release-payload.sh x86_64 /tmp/devvy-macos-x86_64.tar.gz
-      - name: Validate Windows installer scripts
+          mkdir -p dist
+          for arch in arm64 x86_64; do
+            DEVVY_ARCH="${arch}" ./scripts/package-release.sh "dist/devvy-macos-${arch}.tar.gz"
+            ./scripts/test-release-payload.sh "${arch}" "dist/devvy-macos-${arch}.tar.gz"
+          done
+
+      - name: Build and validate Windows payload
         run: |
-          DEVVY_VERSION=4.1.0 ./scripts/package-windows-release.sh /tmp/devvy-windows-x86_64.zip
-          ./scripts/test-windows-payload.sh /tmp/devvy-windows-x86_64.zip
-          test -s /tmp/devvy-windows-x86_64.zip.sha256
+          ./scripts/package-windows-release.sh dist/devvy-windows-x86_64.zip
+          ./scripts/test-windows-payload.sh dist/devvy-windows-x86_64.zip
+
+      - name: Collect verified payloads
+        if: inputs.upload-artifacts
+        run: |
+          cp "devvy-${{ steps.version.outputs.version }}.vsix" dist/
+          ls -l dist
+
+      - name: Upload verified payloads
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: devvy-release-payloads
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7

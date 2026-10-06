@@ -2,7 +2,7 @@
   "name": "devvy",
   "displayName": "Devvy",
   "description": "One local-first Discord Rich Presence for your whole coding workflow. VS Code, OpenCode, and Command Code combine into one activity. Independent open source.",
-  "version": "4.0.2",
+  "version": "4.1.0",
   "publisher": "sonawaneutkarsh",
   "license": "MIT",
   "icon": "icon.png",

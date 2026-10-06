@@ -6,6 +6,7 @@ TEST_DIR="${ROOT}/.test-commandcode"
 IPC_DIR="${TEST_DIR}/ipc"
 MOCK_LOG="${IPC_DIR}/server.log"
 DAEMON_LOG="${TEST_DIR}/daemon.log"
+source "${ROOT}/assertions.sh"
 PORT=18384
 
 rm -rf "${TEST_DIR}"
@@ -31,29 +32,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for i in $(seq 1 30); do
-  curl -sf "http://127.0.0.1:${PORT}/healthz" > /dev/null && break
-  sleep 0.2
-done
+wait_for_health "${PORT}"
 
 put() {
   curl -s -X PUT "http://127.0.0.1:${PORT}/state" \
     -H 'content-type: application/json' -d "$1" > /dev/null
 }
 
-last_activity() {
-  grep -E 'ACTIVITY (details|cleared)' "${MOCK_LOG}" | tail -1
-}
 
 activity_count() {
   grep -cE 'ACTIVITY (details|cleared)' "${MOCK_LOG}" || true
 }
 
-fail() {
-  echo "FAIL: $1"
-  echo "--- last activity: $(last_activity)"
-  exit 1
-}
 
 # VS Code heartbeats continuously (fallback)
 (

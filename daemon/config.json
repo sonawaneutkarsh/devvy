@@ -14,9 +14,6 @@
     "showActivity": true,
     "showAgent": true,
     "showProject": true,
-    "showFile": true,
-    "showLanguage": true,
-    "showBranch": false,
-    "showDirty": false
+    "showLanguage": true
   }
 }

@@ -6,6 +6,7 @@ TEST_DIR="${ROOT}/.test-clear"
 IPC_DIR="${TEST_DIR}/ipc"
 MOCK_LOG="${IPC_DIR}/server.log"
 DAEMON_LOG="${TEST_DIR}/daemon.log"
+source "${ROOT}/assertions.sh"
 
 rm -rf "${TEST_DIR}"
 mkdir -p "${TEST_DIR}"
@@ -23,10 +24,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for i in $(seq 1 30); do
-  curl -sf http://127.0.0.1:18381/healthz > /dev/null && break
-  sleep 0.2
-done
+wait_for_health 18381
 
 put() {
   curl -s -X PUT http://127.0.0.1:18381/state \
@@ -58,10 +56,8 @@ VS_PID=$!
 echo "=== wait for idle holds to expire ==="
 sleep 20
 
-grep -q 'ACTIVITY details=p state=Idle' "${MOCK_LOG}"
+expect_activity_sequence 'details=p state=Thinking' 'details=p state=Idle'
+expect_last_activity 'details=p state=Idle' "connected idle sources must stay visible as Idle"
+expect_absent "${MOCK_LOG}" 'h.ts' "file name reached Discord"
 
-echo "=== server log ==="
-cat "${MOCK_LOG}"
-
-echo "=== daemon log ==="
-cat "${DAEMON_LOG}"
+echo "PASS: connected idle integrations stay visible as Idle"

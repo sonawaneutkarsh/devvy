@@ -25,7 +25,9 @@ const source = {
 };
 
 assert.deepEqual(presenceVisibility(undefined), visibility);
-assert.equal(presenceVisibility({ presence: { showFile: false, showDirty: "yes" } }).showProject, true);
+// Unknown or retired keys (showFile/showBranch/showDirty from older configs) are ignored.
+assert.deepEqual(presenceVisibility({ presence: { showFile: true, showDirty: "yes" } }), visibility);
+assert.deepEqual(Object.keys(visibility).sort(), ["showActivity", "showAgent", "showLanguage", "showModel", "showProject"]);
 assert.equal(safeBasename("/private/project/src/auth.ts"), "auth.ts");
 assert.equal(safeBasename("/private/project"), "project");
 assert.equal(safeLanguage("typescript"), "typescript");

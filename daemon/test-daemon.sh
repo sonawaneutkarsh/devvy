@@ -1,20 +1,21 @@
 #!/bin/bash
+# Single OpenCode source: active presence, duplicate suppression, idle state,
+# and privacy of free-text fields, against a mock Discord IPC server.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 TEST_DIR="${ROOT}/.test-run"
 MOCK_LOG="${TEST_DIR}/ipc/server.log"
 DAEMON_LOG="${TEST_DIR}/daemon.log"
+PORT=18377
+source "${ROOT}/assertions.sh"
 
 rm -rf "${TEST_DIR}"
 mkdir -p "${TEST_DIR}"
 
-# 1. Start mock Discord on isolated IPC dir
 node "${ROOT}/mock-discord.mjs" "${TEST_DIR}/ipc" &
 MOCK_PID=$!
-
-# 2. Start daemon pointed at mock + isolated port
-DISCORD_IPC_DIR="${TEST_DIR}/ipc" PRESENCE_PORT=18377 \
+DISCORD_IPC_DIR="${TEST_DIR}/ipc" PRESENCE_PORT=${PORT} \
   node "${ROOT}/daemon.mjs" > "${DAEMON_LOG}" 2>&1 &
 DAEMON_PID=$!
 
@@ -24,38 +25,33 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# wait for daemon health
-for i in $(seq 1 30); do
-  if curl -sf http://127.0.0.1:18377/healthz > /dev/null; then
-    break
-  fi
-  sleep 0.2
-done
+wait_for_health "${PORT}"
 
-echo "=== health ==="
-curl -s http://127.0.0.1:18377/healthz; echo
+put() {
+  curl -fsS -X PUT "http://127.0.0.1:${PORT}/state" \
+    -H 'content-type: application/json' -d "$1" > /dev/null
+}
 
-echo "=== opencode active ==="
-curl -s -X PUT http://127.0.0.1:18377/state \
-  -H 'content-type: application/json' \
-  -d '{"sourceId":"opencode:/test/project","kind":"opencode","ts":1,"active":true,"state":{"app":"OpenCode","project":"rich","model":"Kimi K3","activity":"Implementing auth","file":"auth.ts","startedAt":1000}}'; echo
+ACTIVE='{"sourceId":"opencode:/test/project","kind":"opencode","ts":1,"active":true,"state":{"app":"OpenCode","project":"rich","model":"Kimi K3","activity":"Implementing auth","file":"auth.ts","startedAt":1000}}'
 
+echo "=== 1. OpenCode active -> presence with project, mode, and model ==="
+put "${ACTIVE}"
 sleep 0.3
-
-echo "=== duplicate same state (should not re-SET) ==="
-curl -s -X PUT http://127.0.0.1:18377/state \
-  -H 'content-type: application/json' \
-  -d '{"sourceId":"opencode:/test/project","kind":"opencode","ts":2,"active":true,"state":{"app":"OpenCode","project":"rich","model":"Kimi K3","activity":"Implementing auth","file":"auth.ts","startedAt":1000}}' > /dev/null
+echo "=== 2. identical state again -> no second SET_ACTIVITY ==="
+put "${ACTIVE/\"ts\":1/\"ts\":2}"
 sleep 2.5
+expect_last_activity 'details=rich state=Thinking • Kimi K3' "active OpenCode presence"
+expect_log "${MOCK_LOG}" 'ACTIVITY_ASSETS large=opencode' "OpenCode asset key"
+expect_count 'ACTIVITY details=rich state=Thinking' "${MOCK_LOG}" 1 "duplicate state must not re-send SET_ACTIVITY"
 
-echo "=== opencode idle -> clear ==="
-curl -s -X PUT http://127.0.0.1:18377/state \
-  -H 'content-type: application/json' \
-  -d '{"sourceId":"opencode:/test/project","kind":"opencode","ts":3,"active":false,"state":{"app":"OpenCode","project":"rich"}}' > /dev/null
+echo "=== 3. OpenCode idle -> Idle presence ==="
+put '{"sourceId":"opencode:/test/project","kind":"opencode","ts":3,"active":false,"state":{"app":"OpenCode","project":"rich"}}'
 sleep 2.5
+expect_last_activity 'details=rich state=Idle' "idle OpenCode presence"
 
-echo "=== server log ==="
-cat "${MOCK_LOG}"
+echo "=== 4. privacy and single IPC client ==="
+expect_absent "${MOCK_LOG}" 'Implementing auth' "free-text activity reached Discord"
+expect_absent "${MOCK_LOG}" 'auth.ts' "file name reached Discord"
+expect_count 'client connected' "${MOCK_LOG}" 1 "exactly one Discord IPC client"
 
-echo "=== daemon log ==="
-cat "${DAEMON_LOG}"
+echo "PASS: active presence, duplicate suppression, idle state, privacy"

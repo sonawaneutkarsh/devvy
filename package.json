@@ -1,4 +1,8 @@
 {
+  "private": true,
+  "scripts": {
+    "test": "bash scripts/run-tests.sh"
+  },
   "devDependencies": {
     "@vscode/vsce": "^3.9.2"
   }

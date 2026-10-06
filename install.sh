@@ -46,7 +46,7 @@ if [ -n "${SCRIPT_DIR}" ] && [ -f "${SCRIPT_DIR}/daemon/daemon.mjs" ] && [ -f "$
   SOURCE_DIR="${SCRIPT_DIR}"
 else
   TEMP_DIR="$(mktemp -d)"
-  note "Downloading the signed-by-checksum Devvy release artifact."
+  note "Downloading the checksum-verified Devvy release artifact."
   curl --fail --location --silent --show-error "${RELEASE_ASSET_URL}" -o "${TEMP_DIR}/devvy-macos.tar.gz" ||
     fail "could not download ${RELEASE_ASSET_URL}."
   ACTUAL_SHA256="$(shasum -a 256 "${TEMP_DIR}/devvy-macos.tar.gz" | awk '{print $1}')"

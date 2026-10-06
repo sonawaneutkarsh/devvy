@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Build the Windows x64 payload. This is separate from the macOS packager so
-# the published V4.0.2 macOS recipe remains unchanged.
+# the macOS payload recipe stays unchanged.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 OUT="${1:-${ROOT}/devvy-windows-x86_64.zip}"
-VERSION="${DEVVY_VERSION:-4.1.0}"
-VSIX_VERSION="${DEVVY_VSIX_VERSION:-4.0.2}"
+VERSION="${DEVVY_VERSION:-$("${ROOT}/scripts/version.sh")}"
+VSIX_VERSION="${DEVVY_VSIX_VERSION:-${VERSION}}"
 NODE_VERSION="${DEVVY_NODE_VERSION:-v24.19.0}"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "${STAGE}"' EXIT
 
-[ -f "${ROOT}/devvy-${VSIX_VERSION}.vsix" ] || { printf 'Missing bundled VSIX\n' >&2; exit 1; }
+[ -f "${ROOT}/devvy-${VSIX_VERSION}.vsix" ] || { printf 'Missing bundled VSIX: %s\n' "${ROOT}/devvy-${VSIX_VERSION}.vsix" >&2; exit 1; }
 for command_name in curl shasum unzip zip; do command -v "${command_name}" >/dev/null 2>&1 || { printf '%s is required\n' "${command_name}" >&2; exit 1; }; done
 ARCHIVE="node-${NODE_VERSION}-win-x64.zip"
 curl --fail --location --silent --show-error "https://nodejs.org/dist/${NODE_VERSION}/${ARCHIVE}" -o "${STAGE}/${ARCHIVE}"

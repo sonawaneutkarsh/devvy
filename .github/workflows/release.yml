@@ -1,0 +1,114 @@
+name: Release
+
+# Pushing a v* tag publishes a GitHub Release, but only after the full CI
+# verification (ci.yml, called below) passes on that exact commit. The assets
+# published are the ones CI built and validated in that run.
+#
+# Manual "Run workflow" (workflow_dispatch) is a dry run: it verifies, builds,
+# and lists the payload checksums, and never publishes anything.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Check tag and version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Check version references
+        id: version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            ./scripts/check-versions.sh "${GITHUB_REF_NAME}"
+          else
+            ./scripts/check-versions.sh
+            echo "Dry run from ${GITHUB_REF_NAME}: nothing will be published."
+          fi
+          echo "version=$(./scripts/version.sh)" >> "${GITHUB_OUTPUT}"
+
+  verify:
+    name: CI
+    needs: preflight
+    uses: ./.github/workflows/ci.yml
+    with:
+      upload-artifacts: true
+
+  checksums:
+    name: Payload checksums
+    needs: [preflight, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: devvy-release-payloads
+          path: dist
+      - name: Write SHA256SUMS
+        working-directory: dist
+        run: |
+          sha256sum devvy-* | grep -v '\.sha256$' | tee SHA256SUMS
+          sha256sum -c devvy-windows-x86_64.zip.sha256
+          {
+            echo "### Devvy ${{ needs.preflight.outputs.version }} payloads (${GITHUB_REF_NAME})"
+            echo
+            echo '```text'
+            cat SHA256SUMS
+            echo '```'
+            echo
+            echo "After publishing, pin the macOS checksums above in install.sh (RELEASE_VERSION, RELEASE_SHA256, VSIX_VERSION)."
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: devvy-release-checksums
+          path: dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs: [preflight, verify, checksums]
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: devvy-release-payloads
+          path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: devvy-release-checksums
+          path: dist
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Release ${TAG} already exists. Delete it or push a new tag; this workflow never overwrites a release."
+            exit 1
+          fi
+          gh release create "${TAG}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --title "Devvy ${TAG}" \
+            --generate-notes

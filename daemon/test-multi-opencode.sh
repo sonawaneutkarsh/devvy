@@ -1,19 +1,22 @@
 #!/bin/bash
+# Two OpenCode sources: the active one wins; when both are idle and no other
+# source exists, presence clears after the idle window.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-TEST_DIR="${ROOT}/.test-multi-daemon"
+TEST_DIR="${ROOT}/.test-multi-opencode"
 IPC_DIR="${TEST_DIR}/ipc"
 MOCK_LOG="${IPC_DIR}/server.log"
 DAEMON_LOG="${TEST_DIR}/daemon.log"
+PORT=18382
+source "${ROOT}/assertions.sh"
 
 rm -rf "${TEST_DIR}"
 mkdir -p "${TEST_DIR}"
 
 node "${ROOT}/mock-discord.mjs" "${IPC_DIR}" &
 MOCK_PID=$!
-
-DISCORD_IPC_DIR="${IPC_DIR}" PRESENCE_PORT=18382 \
+DISCORD_IPC_DIR="${IPC_DIR}" PRESENCE_PORT=${PORT} \
   node "${ROOT}/daemon.mjs" > "${DAEMON_LOG}" 2>&1 &
 DAEMON_PID=$!
 
@@ -23,30 +26,23 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for i in $(seq 1 30); do
-  curl -sf http://127.0.0.1:18382/healthz > /dev/null && break
-  sleep 0.2
-done
+wait_for_health "${PORT}"
 
 put() {
-  curl -s -X PUT http://127.0.0.1:18382/state \
+  curl -fsS -X PUT "http://127.0.0.1:${PORT}/state" \
     -H 'content-type: application/json' -d "$1" > /dev/null
 }
 
-# two opencode sources, one active one idle
+echo "=== 1. one active, one idle OpenCode source -> active one wins ==="
 put '{"sourceId":"opencode:/a","kind":"opencode","ts":1,"active":true,"state":{"app":"OpenCode","project":"a","model":"M1","activity":"A1","startedAt":1000}}'
 put '{"sourceId":"opencode:/b","kind":"opencode","ts":1,"active":false,"state":{"app":"OpenCode","project":"b"}}'
 sleep 2.5
+expect_last_activity 'details=a state=Thinking' "active OpenCode source must win"
 
-echo "=== both opencode: active one should win ==="
-grep -E 'ACTIVITY details' "${MOCK_LOG}" | tail -1
-
-# idle the active one; other was already idle
+echo "=== 2. both idle, no VS Code -> presence clears ==="
 put '{"sourceId":"opencode:/a","kind":"opencode","ts":2,"active":false,"state":{"app":"OpenCode","project":"a"}}'
 sleep 18
+expect_last_activity 'ACTIVITY cleared' "presence must clear when every source is idle and expired"
+expect_absent "${MOCK_LOG}" 'details=b state=Thinking' "idle source must never show as active"
 
-echo "=== after both opencode idle, should clear (no VS Code) ==="
-grep -E 'ACTIVITY (details|cleared)' "${MOCK_LOG}" | tail -1
-
-echo "=== daemon log ==="
-cat "${DAEMON_LOG}"
+echo "PASS: multi-source OpenCode arbitration and clear"

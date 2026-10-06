@@ -6,6 +6,7 @@ TEST_DIR="${ROOT}/.test-assets"
 IPC_DIR="${TEST_DIR}/ipc"
 MOCK_LOG="${IPC_DIR}/server.log"
 DAEMON_LOG="${TEST_DIR}/daemon.log"
+source "${ROOT}/assertions.sh"
 PORT=18385
 
 rm -rf "${TEST_DIR}"
@@ -25,21 +26,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for i in $(seq 1 30); do
-  curl -sf "http://127.0.0.1:${PORT}/healthz" > /dev/null && break
-  sleep 0.2
-done
+wait_for_health "${PORT}"
 
 put() {
   curl -s -X PUT "http://127.0.0.1:${PORT}/state" \
     -H 'content-type: application/json' -d "$1" > /dev/null
 }
 
-fail() {
-  echo "FAIL: $1"
-  echo "--- mock log:"; cat "${MOCK_LOG}"
-  exit 1
-}
 
 expect_asset() {
   local kind="$1" expected="$2"

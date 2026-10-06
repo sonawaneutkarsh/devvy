@@ -30,10 +30,7 @@ const DEFAULT_VISIBILITY = {
   showActivity: true,
   showAgent: true,
   showProject: true,
-  showFile: true,
   showLanguage: true,
-  showBranch: false,
-  showDirty: false,
 };
 const MODEL_FAMILY_PATTERN = /^(?:glm|gpt|llama|qwen|claude|gemini|mistral|deepseek|codex|kimi)\d*$/;
 const MODEL_VARIANTS = new Set([
@@ -68,12 +65,6 @@ export function safeBasename(value, max = 64) {
 export function safeLanguage(value) {
   const text = clean(value);
   return /^[A-Za-z][A-Za-z0-9+#._-]{0,31}$/.test(text) ? text : "";
-}
-
-export function safeBranch(value) {
-  const text = clean(value);
-  if (!text || text.startsWith("/") || text.startsWith("\\") || text.includes("..")) return "";
-  return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$/.test(text) ? text : "";
 }
 
 export function safeModel(value) {
