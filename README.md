@@ -6,8 +6,9 @@ itself.
 
 ## Install
 
-Devvy is **one Discord presence for your coding workflow**. Discord must be
-running, but Devvy installs its own runtime and handles the background daemon.
+Discord must be running. Devvy installs its own runtime and manages the
+background daemon, so you do not need Node.js, npm, Homebrew, Python, a VSIX,
+a LaunchAgent, or Discord RPC set up separately.
 
 ### macOS
 
@@ -17,41 +18,48 @@ Run this in Terminal:
 curl -fsSL https://raw.githubusercontent.com/sonawaneutkarsh/devvy/main/install.sh | bash
 ```
 
-### Windows
+The installer downloads the [latest release](https://github.com/sonawaneutkarsh/devvy/releases/latest)
+payload for your Mac (Apple silicon or Intel), verifies its SHA-256 checksum,
+and then:
 
-Download `devvy-windows-x86_64.zip` from the Devvy release and run
-`windows/install.ps1` in PowerShell. Right-click the file, choose **Run with
-PowerShell**, and follow the one-step installer. It installs the isolated
-runtime, starts Devvy at login, and installs the VS Code extension when VS Code
-is available.
-
-Windows x64 is supported first. If VS Code is not installed, installation still
-succeeds and OpenCode or Command Code can use the daemon when available.
-
-The macOS command above remains the only macOS setup command. Devvy installs its own isolated runtime and
-handles the rest automatically:
-
-- The background service starts at login.
-- The VS Code extension installs automatically, even without a `code` command
-  in your PATH.
-- OpenCode and Command Code integrations are installed when those apps are
+- starts the background service at login;
+- installs the VS Code extension, even without a `code` command in your PATH;
+- installs the OpenCode and Command Code integrations when those apps are
   available.
-- Discord presence starts updating through the local daemon.
 
-1. Paste the command into Terminal.
-2. Wait for the installation to finish.
-3. Reload or restart VS Code.
-4. Open VS Code, OpenCode, or Command Code and start working.
-5. Devvy appears on Discord.
+Reload VS Code, open VS Code, OpenCode, or Command Code, and Devvy appears on
+Discord.
 
-You do not need to install Node.js, npm, Homebrew, Python, npx, a VSIX, a
-LaunchAgent, Windows service, or Discord RPC separately.
+### Windows (not released yet)
+
+Windows x64 support is in `main` but is **not in a published release yet**.
+The current releases (v4.0.x) contain macOS payloads only.
+`devvy-windows-x86_64.zip` ships with the next release (v4.1.0). Until then,
+build the payload from source on macOS, Linux, or WSL:
+
+```bash
+npm ci
+(cd vscode-extension && npx --no-install vsce package --out "../devvy-$(../scripts/version.sh).vsix")
+./scripts/package-windows-release.sh
+```
+
+Copy `devvy-windows-x86_64.zip` to the Windows PC, extract it, and run from
+the extracted folder:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\devvy\windows\install.ps1 -SourceDir .\devvy
+```
+
+The installer copies Devvy to `%LOCALAPPDATA%\Devvy`, starts it at login with
+a scheduled task, and installs the VS Code extension when VS Code is
+available. If VS Code is not installed, installation still succeeds and
+OpenCode or Command Code can use the daemon.
 
 ## What It Looks Like
 
 ![Devvy Discord Rich Presence preview](docs/images/discord-presence.png)
 
-This is a real V4 Discord presence: the project, high-level state, and
+This is a real Devvy v4 Discord presence: the project, high-level state, and
 detected model are visible without exposing the task itself.
 
 ## Why Devvy?
@@ -125,7 +133,7 @@ installed.
 ~/.local/share/devvy/uninstall.sh
 ```
 
-On Windows, run `uninstall.ps1` from the Devvy installation directory.
+On Windows, run `uninstall.ps1` from `%LOCALAPPDATA%\Devvy`.
 
 This removes Devvy's daemon, isolated runtime, logs, LaunchAgent, integrations,
 and Devvy VS Code extension. It does not remove unrelated LaunchAgents or
@@ -135,14 +143,29 @@ extensions.
 
 The daemon owns Discord IPC. Integrations only publish safe structured state to
 the loopback HTTP endpoint, and the daemon arbitrates OpenCode, Command Code,
-and VS Code before creating one Discord activity.
+and VS Code (in that priority order) before creating one Discord activity:
 
-The local test suite can be run with the bundled runtime after installation:
+```text
+VS Code extension ──┐
+OpenCode plugin ────┼─→ Devvy daemon (127.0.0.1:17377) ─→ Discord IPC ─→ Discord
+Command Code mod ───┘
+```
+
+Run the test suite from a clone with Node.js 22.18 or newer (the `.ts`
+integrations load through Node's built-in type stripping):
 
 ```bash
-for test in daemon/test-*.mjs; do ~/.local/share/devvy/runtime/node "$test"; done
-for test in daemon/test-*.sh; do "$test"; done
+npm test
 ```
+
+Devvy has **26 test scripts, all run in CI**: 22 in `daemon/` (unit tests plus
+integration tests that start the real daemon against a mock Discord IPC
+server), 1 Windows helper test, 1 VS Code CLI discovery test, and 2
+release-payload checks. `npm test` runs the first 24; CI also builds and
+checks the VSIX and the macOS and Windows payloads.
+
+Releases are published by GitHub Actions only after CI passes on the tagged
+commit. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## License
 
