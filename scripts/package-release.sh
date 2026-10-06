@@ -9,6 +9,8 @@ case "${ARCH}" in
   *) printf 'Unsupported DEVVY_ARCH: %s\n' "${ARCH}" >&2; exit 1;;
 esac
 OUT="${1:-${ROOT}/devvy-macos-${ARCH}.tar.gz}"
+# Resolve a relative output path now; packaging later runs from a staging directory.
+mkdir -p "$(dirname "${OUT}")" && OUT="$(cd "$(dirname "${OUT}")" && pwd -P)/$(basename "${OUT}")"
 VERSION="${DEVVY_VERSION:-$("${ROOT}/scripts/version.sh")}"
 VSIX_VERSION="${DEVVY_VSIX_VERSION:-${VERSION}}"
 NODE_VERSION="v24.19.0"

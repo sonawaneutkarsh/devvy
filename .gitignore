@@ -34,3 +34,6 @@ node_modules/
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# Local payload builds
+dist/

@@ -4,6 +4,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 OUT="${1:-${ROOT}/devvy-windows-x86_64.zip}"
+# Resolve a relative output path now; packaging later runs from a staging directory.
+mkdir -p "$(dirname "${OUT}")" && OUT="$(cd "$(dirname "${OUT}")" && pwd -P)/$(basename "${OUT}")"
 VERSION="${DEVVY_VERSION:-$("${ROOT}/scripts/version.sh")}"
 VSIX_VERSION="${DEVVY_VSIX_VERSION:-${VERSION}}"
 NODE_VERSION="${DEVVY_NODE_VERSION:-v24.19.0}"
