@@ -1,5 +1,8 @@
 # Devvy
 
+[![CI](https://github.com/sonawaneutkarsh/devvy/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sonawaneutkarsh/devvy/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/sonawaneutkarsh/devvy)](https://github.com/sonawaneutkarsh/devvy/releases/latest)
+
 Devvy gives your coding workflow one clean, privacy-conscious Discord Rich
 Presence. It shows what kind of work is happening without showing the work
 itself.
