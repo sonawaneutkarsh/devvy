@@ -37,8 +37,7 @@ Discord.
 
 Windows x64 support is in `main` but is **not in a published release yet**.
 The current releases (v4.0.x) contain macOS payloads only.
-`devvy-windows-x86_64.zip` ships with the next release (v4.1.0). Until then,
-build the payload from source on macOS, Linux, or WSL:
+Build the payload from source on macOS, Linux, or WSL:
 
 ```bash
 npm ci
